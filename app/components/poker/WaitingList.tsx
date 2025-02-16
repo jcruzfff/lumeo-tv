@@ -52,17 +52,17 @@ function SortableItem({ player, index, onRemove }: SortableItemProps) {
   }
 
   return (
-    <li ref={setNodeRef} style={style} className="bg-gray-50 p-3 rounded flex items-center gap-2">
-      <button className="touch-none p-1 text-gray-400" {...attributes} {...listeners}>
+    <li ref={setNodeRef} style={style} className="bg-dark-surface-lighter/60 backdrop-blur-md border border-dark-border/20 p-3 rounded-lg flex items-center gap-2 hover:border-brand-primary/50 hover:bg-dark-surface-light transition-all shadow-sm">
+      <button className="touch-none p-1 text-text-tertiary hover:text-text-secondary" {...attributes} {...listeners}>
         <GripVertical className="h-4 w-4" />
       </button>
-      <span className="flex-1 text-gray-900">
+      <span className="flex-1 text-text-primary font-medium">
         {index + 1}. {player.name}
       </span>
       <Button 
         variant="ghost" 
         size="icon" 
-        className="h-6 w-6 text-gray-400 hover:text-gray-600" 
+        className="h-6 w-6 text-text-tertiary hover:text-status-error hover:bg-status-error/10" 
         onClick={onRemove}
       >
         <X className="h-4 w-4" />
@@ -117,11 +117,11 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
   }
 
   return (
-    <div className="bg-white modern-card p-6 rounded-xl shadow-sm">
+    <div className="bg-dark-surface backdrop-blur-sm border border-[#2C2C2E] p-6 rounded-xl shadow-lg">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-semibold">Wait list</h2>
-        <Button onClick={handleSubmit} size="sm" className="bg-[#12C4E7] hover:bg-[#10B3D3]">
-          Add Player
+        <h2 className="text-2xl font-semibold text-white">Wait list</h2>
+        <Button onClick={handleSubmit} size="sm" className="bg-brand-primary hover:bg-brand-primary/90">
+          +Add Player
         </Button>
       </div>
 
@@ -131,16 +131,16 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
           value={newPlayer}
           onChange={(e) => setNewPlayer(e.target.value)}
           placeholder="Player name"
-          className="w-full"
+          className="w-full bg-dark-surface border-dark-border text-text-primary placeholder:text-text-tertiary focus:border-brand-primary"
         />
       </form>
 
-      <div className="flex justify-between items-center mb-2">
-        <p className="text-sm font-semibold">Total: {players.length}</p>
+      <div className="flex justify-between items-center mb-2 ">
+        <p className="text-sm font-semibold  text-text-secondary">Total: {players.length}</p>
         {players.length > 0 && (
           <button
             onClick={() => setShowClearListDialog(true)}
-            className="text-sm text-red-500 hover:text-red-600 transition-colors"
+            className="text-sm text-status-error hover:text-status-error/80 transition-colors"
           >
             Clear list
           </button>
@@ -149,7 +149,7 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
       
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={players.map(p => p.id)} strategy={verticalListSortingStrategy}>
-          <ul className="space-y-1 max-h-[440px] overflow-y-auto">
+          <ul className="space-y-1 max-h-[440px]  overflow-y-auto scrollbar-thin scrollbar-thumb-dark-border/20 scrollbar-track-dark-surface pr-2">
             {players.map((player, index) => (
               <SortableItem 
                 key={player.id} 
@@ -163,16 +163,16 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
       </DndContext>
 
       <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-dark-card border border-dark-border/20">
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Player from Waitlist</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-text-primary">Remove Player from Waitlist</AlertDialogTitle>
+            <AlertDialogDescription className="text-text-secondary">
               Are you sure you want to remove {selectedPlayerIndex !== null && players[selectedPlayerIndex]?.name} from the waitlist?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmRemove} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogCancel className="bg-dark-surface text-text-primary hover:bg-dark-surface-lighter">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmRemove} className="bg-status-error hover:bg-status-error/90">
               Yes, remove player
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -180,21 +180,21 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
       </AlertDialog>
 
       <AlertDialog open={showClearListDialog} onOpenChange={setShowClearListDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-dark-card border border-dark-border">
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear Waiting List</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-text-primary">Clear Waiting List</AlertDialogTitle>
+            <AlertDialogDescription className="text-text-secondary">
               Are you sure you want to remove all {players.length} players from the waiting list? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-dark-surface text-text-primary hover:bg-dark-surface-lighter">Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={() => {
                 onReorderPlayersAction([]);
                 setShowClearListDialog(false);
               }} 
-              className="bg-red-500 hover:bg-red-600"
+              className="bg-status-error hover:bg-status-error/90"
             >
               Yes, clear list
             </AlertDialogAction>

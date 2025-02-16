@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { MediaItem } from '../types';
 
 interface MediaContextType {
@@ -8,6 +8,7 @@ interface MediaContextType {
   currentMediaIndex: number;
   setMediaItems: (items: MediaItem[]) => void;
   setCurrentMediaIndex: (index: number) => void;
+  storeMediaItems: (items: MediaItem[]) => void;
 }
 
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
@@ -20,6 +21,21 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   // Set isClient to true once component mounts
   useEffect(() => {
     setIsClient(true);
+  }, []);
+
+  // Store media items in localStorage and state
+  const storeMediaItems = useCallback((items: MediaItem[]) => {
+    setMediaItems(items);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('mediaState', JSON.stringify({
+          mediaItems: items,
+          currentMediaIndex: 0,
+        }));
+      } catch (error) {
+        console.error('Error saving media state:', error);
+      }
+    }
   }, []);
 
   // Load media state from localStorage on mount
@@ -38,20 +54,6 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isClient]);
 
-  // Save media state to localStorage whenever it changes
-  useEffect(() => {
-    if (!isClient) return;
-
-    try {
-      localStorage.setItem('mediaState', JSON.stringify({
-        mediaItems,
-        currentMediaIndex,
-      }));
-    } catch (error) {
-      console.error('Error saving media state:', error);
-    }
-  }, [mediaItems, currentMediaIndex, isClient]);
-
   if (!isClient) {
     return null;
   }
@@ -63,6 +65,7 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
         currentMediaIndex,
         setMediaItems,
         setCurrentMediaIndex,
+        storeMediaItems,
       }}
     >
       {children}

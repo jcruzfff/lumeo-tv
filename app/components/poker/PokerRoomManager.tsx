@@ -61,21 +61,21 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
   };
 
   return (
-    <div className="modern-card p-6 mb-8 timer-section-enter">
+    <div className="bg-dark-surface/80 backdrop-blur-sm border border-[#2C2C2E] p-8 mb-4 rounded-[24px]">
       <div className="animate-fade-in">
         <div className="mb-6">
-          <h2 className="text-2xl font-semibold text-black">Poker Room Manager</h2>
-          <p className="text-gray-600">Configure blind levels and their durations</p>
+          <h2 className="text-2xl font-semibold text-white pb-2">Poker Room Manager</h2>
+          <p className="text-text-secondary">Configure blind levels and their durations</p>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-6 mb-8 border-b border-[#EBEBEB]">
+        <div className="flex gap-6 mb-8 border-b border-[#2C2C2E]">
           <button
             onClick={() => setActiveTab('timer')}
             className={`pb-2 text-lg transition-colors ${
               activeTab === 'timer'
-                ? 'text-black border-b-2 border-[#12C4E7] font-medium'
-                : 'text-gray-600 hover:text-black'
+                ? 'text-text-primary border-b-2 border-brand-primary font-medium'
+                : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             Timer
@@ -84,8 +84,8 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
             onClick={() => setActiveTab('room')}
             className={`pb-2 text-lg transition-colors ${
               activeTab === 'room'
-                ? 'text-black border-b-2 border-[#12C4E7] font-medium'
-                : 'text-gray-600 hover:text-black'
+                ? 'text-text-primary border-b-2 border-brand-primary font-medium'
+                : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             Poker Room
@@ -96,12 +96,12 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
         {activeTab === 'room' && (
           <div>
             {/* Room Management Settings */}
-            <div className="glass-card p-6 mb-6">
+            <div className="bg-[#1F1F21] backdrop-blur-md border border-[#2C2C2E] p-6 mb-6 rounded-xl">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold text-black">Room Management</h3>
-                    <p className="text-sm text-gray-600">Enable table and waitlist management</p>
+                    <h3 className="text-lg font-semibold text-text-primary pb-2">Room Management</h3>
+                    <p className="text-sm text-text-secondary">Enable table and waitlist management</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
@@ -110,15 +110,15 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
                       onChange={(e) => setIsRoomManagementEnabled(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#12C4E7]"></div>
+                    <div className="w-11 h-6 bg-dark-surface/80 border border-dark-border peer-focus:outline-none rounded-full peer dark:bg-dark-surface-lighter peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-dark-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary hover:bg-dark-surface-lighter transition-colors"></div>
                   </label>
                 </div>
 
                 {isRoomManagementEnabled && (
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-black">Show Waitlist on Display</h3>
-                      <p className="text-sm text-gray-600">Display the waitlist in the timer sequence</p>
+                      <h3 className="text-lg font-semibold text-text-primary">Show Waitlist on Display</h3>
+                      <p className="text-sm text-text-secondary">Display the waitlist in the timer sequence</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
@@ -127,7 +127,7 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
                         onChange={(e) => setShowWaitlistOnDisplay(e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#12C4E7]"></div>
+                      <div className="w-11 h-6 bg-dark-surface/80 border border-dark-border peer-focus:outline-none rounded-full peer dark:bg-dark-surface-lighter peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-dark-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary hover:bg-dark-surface-lighter transition-colors"></div>
                     </label>
                   </div>
                 )}
@@ -139,8 +139,8 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
                 <div>
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-4">
-                      <Button onClick={addTable} className="bg-[#10C4E7] hover:bg-[#10B3D3]">
-                        Add Tables
+                      <Button onClick={addTable} className="bg-brand-primary hover:bg-brand-primary/90">
+                        +Add Tables
                       </Button>
                     </div>
                   </div>
@@ -169,29 +169,29 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
           <div>
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h3 className="text-xl font-semibold text-black">Blind Levels</h3>
-                <p className="text-gray-600 mt-1">Configure tournament blind structure</p>
+                <h3 className="text-xl font-semibold text-text-primary">Blind Levels</h3>
+                <p className="text-text-secondary mt-2">Configure tournament blind structure</p>
               </div>
               <button
                 onClick={addBlindLevel}
-                className="btn-primary"
+                className="inline-flex items-center border border-[#2C2C2E] text-sm font-medium bg-brand-primary hover:bg-brand-primary/90 text-white px-4 py-2 rounded-lg transition-colors"
               >
-                Add Level
+                +Add Level
               </button>
             </div>
 
             {/* Duration Auto Select */}
-            <div className="glass-card p-4 mb-6">
+            <div className="bg-dark-surface backdrop-blur-md border border-[#2C2C2E] p-4 mb-6 rounded-xl">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-black mb-1">Quick Duration Set</h3>
-                  <p className="text-sm text-gray-600">Set duration for all levels at once</p>
+                  <h3 className="text-lg font-semibold text-text-primary mb-1">Quick Duration Set</h3>
+                  <p className="text-sm text-text-secondary">Set duration for all levels at once</p>
                 </div>
                 <div className="relative">
                   <input
                     type="number"
                     placeholder="Minutes"
-                    className="w-[200px] px-4 py-2 rounded-lg border border-[#EBEBEB] focus:border-[#12C4E7] focus:ring-1 focus:ring-[#12C4E7] bg-white text-gray-700"
+                    className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-[200px] px-4 py-2.5 rounded-[8px] border border-[#2C2C2E] focus:border-brand-primary/20 focus:outline-none bg-dark-surface text-text-primary"
                     min="1"
                     onChange={(e) => {
                       const duration = parseInt(e.target.value);
@@ -203,14 +203,14 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
                       }
                     }}
                   />
-                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">min</span>
+                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-secondary text-sm">min</span>
                 </div>
               </div>
             </div>
 
             <div className="overflow-hidden">
               {/* Column Headers */}
-              <div className="grid grid-cols-5 gap-4 mb-4 px-4 text-gray-600">
+              <div className="grid grid-cols-5 gap-4 mb-4 px-4 text-text-secondary">
                 <div>Level</div>
                 <div>Small Blind ($)</div>
                 <div>Big Blind ($)</div>
@@ -222,15 +222,15 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
                 {pokerLevels.map((level, index) => (
                   <div 
                     key={level.id} 
-                    className="grid grid-cols-5 gap-4 items-center p-4 rounded-lg bg-white border border-[#EBEBEB] transition-all hover:border-[#12C4E7]"
+                    className="grid grid-cols-5 gap-4 items-center p-4 rounded-lg bg-dark-surface border border-[#2C2C2E] transition-all hover:border-brand-primary"
                   >
-                    <div className="text-black">Level {index + 1}</div>
+                    <div className="text-text-primary">Level {index + 1}</div>
                     <div>
                       <input
                         type="number"
                         value={level.smallBlind}
                         onChange={(e) => updateBlindLevel(index, 'smallBlind', e.target.value ? parseInt(e.target.value) : 0)}
-                        className="w-full"
+                        className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-full bg-dark-surface text-text-primary border border-[#2C2C2E] focus:border-brand-primary/20 focus:outline-none rounded-[8px] px-4 py-2.5"
                         min="0"
                       />
                     </div>
@@ -239,7 +239,7 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
                         type="number"
                         value={level.bigBlind}
                         onChange={(e) => updateBlindLevel(index, 'bigBlind', e.target.value ? parseInt(e.target.value) : 0)}
-                        className="w-full"
+                        className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-full bg-dark-surface text-text-primary border border-[#2C2C2E] focus:border-brand-primary/20 focus:outline-none rounded-[8px] px-4 py-2.5"
                         min="0"
                       />
                     </div>
@@ -248,7 +248,7 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
                         type="number"
                         value={level.duration}
                         onChange={(e) => updateBlindLevel(index, 'duration', e.target.value ? parseInt(e.target.value) : 1)}
-                        className="w-full"
+                        className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-full bg-dark-surface text-text-primary border border-[#2C2C2E] focus:border-brand-primary/20 focus:outline-none rounded-[8px] px-4 py-2.5"
                         min="1"
                       />
                     </div>
@@ -258,8 +258,8 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
                         disabled={pokerLevels.length === 1}
                         className={`p-2 rounded-lg transition-colors ${
                           pokerLevels.length === 1
-                            ? 'text-gray-400 cursor-not-allowed'
-                            : 'text-[#FE6651] hover:bg-red-50'
+                            ? 'text-text-tertiary cursor-not-allowed'
+                            : 'text-status-error hover:bg-status-error/10'
                         }`}
                         title={pokerLevels.length === 1 ? "Can't delete the last level" : "Remove this level"}
                       >
@@ -282,19 +282,19 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
               </div>
             </div>
 
-            <div className="mt-6 text-sm text-gray-600 bg-white p-4 rounded-lg border border-[#EBEBEB]">
+            <div className="mt-6 text-sm text-text-secondary bg-[#1F1F21] p-4 rounded-lg border border-[#2C2C2E]">
               <ul className="space-y-2">
                 <li className="flex items-center space-x-2">
-                  <span className="w-2 h-2 bg-[#12C4E7] rounded-full"></span>
-                  <span>Small Blind: The initial forced bet for the player to the left of the dealer</span>
+                  <span className="w-2 h-2 bg-brand-primary rounded-full "></span>
+                  <span className="text-text-secondary">Small Blind: The initial forced bet for the player to the left of the dealer</span>
                 </li>
                 <li className="flex items-center space-x-2">
-                  <span className="w-2 h-2 bg-[#12C4E7] rounded-full"></span>
-                  <span>Big Blind: Usually double the small blind, placed by the player two positions left of the dealer</span>
+                  <span className="w-2 h-2 bg-brand-primary rounded-full"></span>
+                  <span className="text-text-secondary">Big Blind: Usually double the small blind, placed by the player two positions left of the dealer</span>
                 </li>
                 <li className="flex items-center space-x-2">
-                  <span className="w-2 h-2 bg-[#12C4E7] rounded-full"></span>
-                  <span>Duration: How long this level will last in minutes</span>
+                  <span className="w-2 h-2 bg-brand-primary rounded-full"></span>
+                  <span className="text-text-secondary">Duration: How long this level will last in minutes</span>
                 </li>
               </ul>
             </div>

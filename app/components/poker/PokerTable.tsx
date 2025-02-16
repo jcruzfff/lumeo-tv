@@ -57,14 +57,14 @@ export default function PokerTable({ seats, onAssignSeatAction, onEmptySeatActio
   return (
     <TooltipProvider>
       <div className="relative w-full h-0 pb-[100%]">
-        <div className="absolute inset-0 bg-green-600 rounded-full flex items-center justify-center">
-          <div className="w-[80%] h-[60%] bg-green-700 rounded-[100px] flex flex-col items-center justify-center">
-            <span className="text-white text-base font-medium">Poker Table</span>
+        <div className="absolute inset-0 bg-green-600/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-xl">
+          <div className="w-[80%] h-[60%] bg-green-700/90 backdrop-blur-sm rounded-[100px] flex flex-col items-center justify-center border border-white/10">
+            <span className="text-white/90 text-base font-medium">Poker Table</span>
           </div>
 
           {/* Dealer Position (D) */}
           <div
-            className="absolute w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold bg-black text-white shadow-lg z-10"
+            className="absolute w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold bg-dark-background/90 text-text-primary border border-dark-border/20 shadow-lg backdrop-blur-sm z-10"
             style={{
               top: "15%",
               left: "50%",
@@ -82,12 +82,12 @@ export default function PokerTable({ seats, onAssignSeatAction, onEmptySeatActio
               <Tooltip key={index}>
                 <TooltipTrigger asChild>
                   <div
-                    className={`absolute w-8 h-8 rounded-full flex items-center justify-center text-sm transition-colors duration-200 ${
+                    className={`absolute w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 shadow-lg backdrop-blur-sm ${
                       player
                         ? hoveredSeat === index
-                          ? "bg-red-500 text-white"
-                          : "bg-[#10C4E7] text-white"
-                        : "bg-white shadow-sm"
+                          ? "bg-status-error/90 text-white border border-white/10"
+                          : "bg-brand-primary/90 text-white border border-white/10"
+                        : "bg-dark-surface/90 border border-dark-border/20 hover:bg-dark-surface-lighter/90"
                     }`}
                     style={{
                       ...position,
@@ -100,11 +100,11 @@ export default function PokerTable({ seats, onAssignSeatAction, onEmptySeatActio
                     {player ? (
                       index + 1
                     ) : (
-                      <UserPlus className="h-3 w-3 text-gray-400" />
+                      <UserPlus className="h-3 w-3 text-text-secondary" />
                     )}
                   </div>
                 </TooltipTrigger>
-                <TooltipContent>
+                <TooltipContent className="bg-dark-card border border-dark-border/20 text-text-primary">
                   {player ? (
                     <p>Seat {index + 1}: {player.name} (Click to remove)</p>
                   ) : (
@@ -118,16 +118,16 @@ export default function PokerTable({ seats, onAssignSeatAction, onEmptySeatActio
       </div>
 
       <AlertDialog open={showRemoveDialog} onOpenChange={setShowRemoveDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-dark-card border border-dark-border/20">
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Player</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-text-primary">Remove Player</AlertDialogTitle>
+            <AlertDialogDescription className="text-text-secondary">
               Are you sure you want to remove {selectedSeat !== null && seats[selectedSeat]?.name} from seat {selectedSeat !== null ? selectedSeat + 1 : ''}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmRemove} className="bg-red-500 hover:bg-red-600">
+            <AlertDialogCancel className="bg-dark-surface text-text-primary hover:bg-dark-surface-lighter">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmRemove} className="bg-status-error hover:bg-status-error/90">
               Yes, remove player
             </AlertDialogAction>
           </AlertDialogFooter>

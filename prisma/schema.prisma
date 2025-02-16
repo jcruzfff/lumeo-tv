@@ -7,6 +7,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String    // Hashed password
+  isAdmin       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  events        Event[]   // Events created by this user
+}
+
 model Event {
   id          String      @id @default(cuid())
   name        String
@@ -19,6 +30,10 @@ model Event {
   mediaItems  MediaItem[]
   tables      Table[]     @relation("EventTables")
   waitingList Player[]    @relation("EventWaitingList")
+  creator     User        @relation(fields: [creatorId], references: [id])
+  creatorId   String
+  displayUrl  String?     @unique // Unique URL for sharing the display
+  adminUrl    String?     @unique // Unique URL for admin access
 }
 
 model MediaItem {

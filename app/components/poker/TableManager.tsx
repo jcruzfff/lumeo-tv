@@ -20,25 +20,25 @@ export default function TableManager({ tables, onAssignSeatAction, onEmptySeatAc
         const totalSeats = table.seats.length
 
         return (
-          <div key={table.id} className="bg-white p-3 rounded-xl border border-gray-200">
+          <div key={table.id} className="bg-dark-surface backdrop-blur-md border border-dark-border/20 p-3 rounded-xl shadow-lg hover:shadow-xl transition-all">
             <div className="flex justify-between items-start mb-2">
               <div>
-                <h3 className="text-xl font-semibold">Table {index + 1}</h3>
-                <p className="text-gray-600 text-sm">
+                <h3 className="text-xl font-semibold text-text-primary">Table {index + 1}</h3>
+                <p className="text-text-secondary text-sm">
                   {availableSeats}/{totalSeats} seats available
                 </p>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 -mt-1"
+                className="h-8 w-8 -mt-1 text-text-secondary hover:text-status-error hover:bg-status-error/10"
                 onClick={() => onRemoveTableAction(table.id)}
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
             
-            <div className="bg-gray-50 p-2 rounded-xl">
+            <div className="bg-dark-background/50 backdrop-blur-sm p-2 rounded-xl">
               <PokerTable
                 seats={table.seats}
                 onAssignSeatAction={(seatIndex) => onAssignSeatAction(table.id, seatIndex)}

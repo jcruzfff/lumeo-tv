@@ -33,13 +33,29 @@ interface PokerRoomContextType extends PokerRoomState {
 const PokerRoomContext = createContext<PokerRoomContextType | undefined>(undefined);
 
 export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<PokerRoomState>({
-    tables: [],
-    waitingList: [],
-    showRoomInfo: true,
-    isRoomManagementEnabled: false,
-    showWaitlistOnDisplay: false,
-  });
+  // Try to load initial state from localStorage
+  const getInitialState = (): PokerRoomState => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedState = localStorage.getItem('pokerRoomState');
+        if (savedState) {
+          console.log('Loading initial poker room state:', JSON.parse(savedState));
+          return JSON.parse(savedState);
+        }
+      } catch (error) {
+        console.error('Error loading initial poker room state:', error);
+      }
+    }
+    return {
+      tables: [],
+      waitingList: [],
+      showRoomInfo: true,
+      isRoomManagementEnabled: false,
+      showWaitlistOnDisplay: false,
+    };
+  };
+
+  const [state, setState] = useState<PokerRoomState>(getInitialState);
   const [isClient, setIsClient] = useState(false);
 
   // Set isClient to true once component mounts
@@ -47,25 +63,12 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
     setIsClient(true);
   }, []);
 
-  // Load state from localStorage on mount
-  useEffect(() => {
-    if (!isClient) return;
-
-    try {
-      const savedState = localStorage.getItem('pokerRoomState');
-      if (savedState) {
-        setState(JSON.parse(savedState));
-      }
-    } catch (error) {
-      console.error('Error loading poker room state:', error);
-    }
-  }, [isClient]);
-
   // Save state to localStorage whenever it changes
   useEffect(() => {
     if (!isClient) return;
 
     try {
+      console.log('Saving poker room state to localStorage:', state);
       localStorage.setItem('pokerRoomState', JSON.stringify(state));
     } catch (error) {
       console.error('Error saving poker room state:', error);

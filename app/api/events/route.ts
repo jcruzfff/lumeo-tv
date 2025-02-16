@@ -1,10 +1,44 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
 import { prisma } from '@/app/lib/db'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/api/auth/auth.config'
 
-export async function POST(req: Request) {
+export const dynamic = 'force-dynamic'
+
+export async function POST(req: NextRequest) {
+  console.log('POST request received to create new event')
+  
   try {
+    const session = await getServerSession(authOptions)
+    console.log('Session state:', session ? 'Authenticated' : 'Unauthenticated')
+
+    if (!session) {
+      console.log('Unauthorized access attempt')
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const body = await req.json()
+    console.log('Request body:', body)
+    
     const { name, type, settings } = body
+
+    // Find an admin user to associate with the event
+    const adminUser = await prisma.user.findFirst({
+      where: {
+        isAdmin: true
+      }
+    });
+
+    if (!adminUser) {
+      console.log('No admin user found')
+      return NextResponse.json(
+        { error: 'No admin user found to create event' },
+        { status: 400 }
+      );
+    }
 
     const event = await prisma.event.create({
       data: {
@@ -13,12 +47,20 @@ export async function POST(req: Request) {
         settings,
         status: 'ACTIVE',
         startedAt: new Date(),
+        creatorId: adminUser.id
+      },
+      include: {
+        mediaItems: true,
+        tables: true,
+        waitingList: true,
+        creator: true
       },
     })
 
+    console.log('Event created successfully:', event.id)
     return NextResponse.json(event)
   } catch (error) {
-    console.error('Error creating event:', error)
+    console.error('Error in POST /api/events:', error)
     return NextResponse.json(
       { error: 'Error creating event' },
       { status: 500 }
@@ -27,22 +69,36 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
+  console.log('GET request received to fetch all events')
+  
   try {
+    const session = await getServerSession(authOptions)
+    console.log('Session state:', session ? 'Authenticated' : 'Unauthenticated')
+
+    if (!session) {
+      console.log('Unauthorized access attempt')
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const events = await prisma.event.findMany({
       include: {
         mediaItems: true,
         tables: true,
-        waitingList: {
-          orderBy: {
-            position: 'asc',
-          },
-        },
+        waitingList: true,
+        creator: true
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     })
 
+    console.log('Successfully fetched', events.length, 'events')
     return NextResponse.json(events)
   } catch (error) {
-    console.error('Error fetching events:', error)
+    console.error('Error in GET /api/events:', error)
     return NextResponse.json(
       { error: 'Error fetching events' },
       { status: 500 }
