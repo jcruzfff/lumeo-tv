@@ -21,24 +21,36 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [pokerState, setPokerState] = useState<PokerTimerState | null>(null);
   const [basketballState, setBasketballState] = useState<BasketballTimerState | null>(null);
   const [customTimerState, setCustomTimerState] = useState<CustomTimerState | null>(null);
-  const isDisplayPage = typeof window !== 'undefined' && window.location.pathname === '/display';
+  const [isClient, setIsClient] = useState(false);
+  const isDisplayPage = isClient && typeof window !== 'undefined' && window.location.pathname === '/display';
+
+  // Set isClient to true once component mounts
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Load state from localStorage on mount and start polling for updates if on display page
   useEffect(() => {
+    if (!isClient) return;
+
     const loadState = () => {
-      const savedState = localStorage.getItem('timerState');
-      if (savedState) {
-        const { 
-          activeTimer: savedActiveTimer, 
-          pokerState: savedPokerState, 
-          basketballState: savedBasketballState,
-          customTimerState: savedCustomTimerState 
-        } = JSON.parse(savedState);
-        
-        setActiveTimer(savedActiveTimer);
-        setPokerState(savedPokerState);
-        setBasketballState(savedBasketballState);
-        setCustomTimerState(savedCustomTimerState);
+      try {
+        const savedState = localStorage.getItem('timerState');
+        if (savedState) {
+          const { 
+            activeTimer: savedActiveTimer, 
+            pokerState: savedPokerState, 
+            basketballState: savedBasketballState,
+            customTimerState: savedCustomTimerState 
+          } = JSON.parse(savedState);
+          
+          setActiveTimer(savedActiveTimer);
+          setPokerState(savedPokerState);
+          setBasketballState(savedBasketballState);
+          setCustomTimerState(savedCustomTimerState);
+        }
+      } catch (error) {
+        console.error('Error loading timer state:', error);
       }
     };
 
@@ -56,21 +68,27 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         clearInterval(interval);
       }
     };
-  }, [isDisplayPage]);
+  }, [isClient, isDisplayPage]);
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('timerState', JSON.stringify({
-      activeTimer,
-      pokerState,
-      basketballState,
-      customTimerState,
-    }));
-  }, [activeTimer, pokerState, basketballState, customTimerState]);
+    if (!isClient) return;
+
+    try {
+      localStorage.setItem('timerState', JSON.stringify({
+        activeTimer,
+        pokerState,
+        basketballState,
+        customTimerState,
+      }));
+    } catch (error) {
+      console.error('Error saving timer state:', error);
+    }
+  }, [activeTimer, pokerState, basketballState, customTimerState, isClient]);
 
   // Timer countdown logic for display page
   useEffect(() => {
-    if (!isDisplayPage) return;
+    if (!isClient || !isDisplayPage) return;
 
     let interval: NodeJS.Timeout;
 
@@ -148,7 +166,11 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         clearInterval(interval);
       }
     };
-  }, [isDisplayPage, activeTimer, basketballState?.isRunning, pokerState?.isRunning, customTimerState?.isRunning]);
+  }, [isClient, isDisplayPage, activeTimer, basketballState?.isRunning, pokerState?.isRunning, customTimerState?.isRunning]);
+
+  if (!isClient) {
+    return null;
+  }
 
   return (
     <TimerContext.Provider

@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  name        String
+  type        EventType
+  status      EventStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now())
+  startedAt   DateTime?
+  endedAt     DateTime?
+  settings    Json        // Stores timer settings, blind levels, etc.
+  mediaItems  MediaItem[]
+  tables      Table[]     @relation("EventTables")
+  waitingList Player[]    @relation("EventWaitingList")
+}
+
+model MediaItem {
+  id           String    @id @default(cuid())
+  eventId      String
+  event        Event     @relation(fields: [eventId], references: [id])
+  type         MediaType
+  url          String
+  displayOrder Int
+  duration     Int?      // in seconds, for images
+}
+
+model Table {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation("EventTables", fields: [eventId], references: [id])
+  number    Int
+  seats     Json     // Array of seated players
+  createdAt DateTime @default(now())
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation("EventWaitingList", fields: [eventId], references: [id])
+  name      String
+  position  Int
+  addedAt   DateTime @default(now())
+}
+
+enum EventType {
+  POKER
+  BASKETBALL
+  CUSTOM
+}
+
+enum EventStatus {
+  ACTIVE
+  ENDED
+  SCHEDULED
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+} 

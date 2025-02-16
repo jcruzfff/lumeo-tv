@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useTimer } from '../contexts/TimerContext';
 import { useMedia } from '../contexts/MediaContext';
 import Image from 'next/image';
+import { usePokerRoom } from '../contexts/PokerRoomContext';
 
 const formatTime = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60);
@@ -14,8 +15,20 @@ const formatTime = (seconds: number): string => {
 export default function Display() {
   const { activeTimer, pokerState, basketballState, customTimerState, setPokerState, setBasketballState, setCustomTimerState } = useTimer();
   const { mediaItems, currentMediaIndex, setCurrentMediaIndex } = useMedia();
+  const { 
+    waitingList, 
+    isRoomManagementEnabled, 
+    showWaitlistOnDisplay,
+    setState: setPokerRoomState 
+  } = usePokerRoom();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isTimerPage, setIsTimerPage] = useState(true);
+  const [isClient, setIsClient] = useState(false);
+
+  // Set isClient to true once component mounts
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   console.log('Display component rendered:', {
     mediaItemsLength: mediaItems.length,
@@ -178,6 +191,25 @@ export default function Display() {
     }
   }, [activeTimer, basketballState]);
 
+  // Poll for poker room state updates
+  useEffect(() => {
+    const loadPokerRoomState = () => {
+      const savedState = localStorage.getItem('pokerRoomState');
+      if (savedState) {
+        const parsedState = JSON.parse(savedState);
+        setPokerRoomState(parsedState);
+      }
+    };
+
+    // Initial load
+    loadPokerRoomState();
+
+    // Poll for updates
+    const interval = setInterval(loadPokerRoomState, 1000);
+
+    return () => clearInterval(interval);
+  }, [setPokerRoomState]);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen()
@@ -198,6 +230,10 @@ export default function Display() {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  if (!isClient) {
+    return null;
+  }
 
   if (!activeTimer || (!pokerState && !basketballState && !customTimerState)) {
     return (
@@ -297,6 +333,25 @@ export default function Display() {
               <div className="text-2xl opacity-75">
                 Level {pokerState.currentLevel + 1} of {pokerState.levels.length}
               </div>
+
+              {/* Waitlist Display */}
+              {isRoomManagementEnabled && showWaitlistOnDisplay && waitingList.length > 0 && (
+                <div className="mt-8 pt-8 border-t border-white/20">
+                  <h3 className="text-2xl font-semibold mb-4">Waiting List</h3>
+                  <div className="flex flex-col items-center space-y-2">
+                    {waitingList.slice(0, 5).map((player, index) => (
+                      <div key={player.id} className="text-xl">
+                        {index + 1}. {player.name}
+                      </div>
+                    ))}
+                    {waitingList.length > 5 && (
+                      <div className="text-lg opacity-75">
+                        +{waitingList.length - 5} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           
@@ -312,6 +367,20 @@ export default function Display() {
               <div className="text-xl opacity-75">
                 Level {pokerState.currentLevel + 1} of {pokerState.levels.length}
               </div>
+
+              {/* Compact Waitlist Display */}
+              {isRoomManagementEnabled && showWaitlistOnDisplay && waitingList.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-white/20 text-left">
+                  <h4 className="text-lg font-semibold mb-2">Next Up:</h4>
+                  <div className="space-y-1">
+                    {waitingList.slice(0, 3).map((player, index) => (
+                      <div key={player.id} className="text-sm">
+                        {index + 1}. {player.name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

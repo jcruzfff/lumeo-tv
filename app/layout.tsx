@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { TimerProvider } from "./contexts/TimerContext";
 import { MediaProvider } from "./contexts/MediaContext";
+import { PokerRoomProvider } from "./contexts/PokerRoomContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,9 +22,11 @@ export default function RootLayout({
       <body className={inter.className}>
         <TimerProvider>
           <MediaProvider>
-            <main className="min-h-screen bg-gray-100">
-              {children}
-            </main>
+            <PokerRoomProvider>
+              <main className="min-h-screen bg-gray-100">
+                {children}
+              </main>
+            </PokerRoomProvider>
           </MediaProvider>
         </TimerProvider>
       </body>
