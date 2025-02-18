@@ -149,7 +149,7 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
       
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={players.map(p => p.id)} strategy={verticalListSortingStrategy}>
-          <ul className="space-y-1 max-h-[440px]  overflow-y-auto scrollbar-thin scrollbar-thumb-dark-border/20 scrollbar-track-dark-surface pr-2">
+          <ul className="space-y-1 max-h-[820px]  overflow-y-auto scrollbar-thin scrollbar-thumb-dark-border/20 scrollbar-track-dark-surface pr-2">
             {players.map((player, index) => (
               <SortableItem 
                 key={player.id} 

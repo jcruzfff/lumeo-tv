@@ -4,6 +4,7 @@ import PokerTable from "./PokerTable"
 import { Button } from "../../components/ui/button"
 import { X } from "lucide-react"
 import { Player } from '../../contexts/PokerRoomContext'
+import { useState } from "react"
 
 interface TableManagerProps {
   tables: { id: number; seats: (Player | null)[] }[]
@@ -13,6 +14,8 @@ interface TableManagerProps {
 }
 
 export default function TableManager({ tables, onAssignSeatAction, onEmptySeatAction, onRemoveTableAction }: TableManagerProps) {
+  const [activeTable, setActiveTable] = useState<number | null>(null);
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {tables.map((table, index) => {
@@ -20,7 +23,14 @@ export default function TableManager({ tables, onAssignSeatAction, onEmptySeatAc
         const totalSeats = table.seats.length
 
         return (
-          <div key={table.id} className="bg-dark-surface backdrop-blur-md border border-dark-border/20 p-3 rounded-xl shadow-lg hover:shadow-xl transition-all">
+          <div 
+            key={table.id} 
+            className={`bg-dark-surface backdrop-blur-md border border-dark-border/20 p-3 rounded-xl shadow-lg hover:shadow-xl transition-all relative ${
+              activeTable === table.id ? 'z-50' : 'z-0'
+            }`}
+            onMouseEnter={() => setActiveTable(table.id)}
+            onMouseLeave={() => setActiveTable(null)}
+          >
             <div className="flex justify-between items-start mb-2">
               <div>
                 <h3 className="text-xl font-semibold text-text-primary">Table {index + 1}</h3>

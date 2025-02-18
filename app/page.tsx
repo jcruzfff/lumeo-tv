@@ -4,7 +4,7 @@ export default function LandingPage() {
   return (
     <div className="bg-dark-background">
       {/* Hero Section */}
-      <section className="min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8">
+      <section className="min-h-screen  flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-5xl md:text-6xl font-bold text-text-primary mb-6">
             Professional Timer Display for

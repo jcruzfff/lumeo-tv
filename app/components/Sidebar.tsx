@@ -4,8 +4,6 @@ import { signOut, useSession } from 'next-auth/react';
 import { 
   LayoutDashboard, 
   Timer, 
-  Users, 
-  MonitorPlay,
   History,
   PlusCircle,
   LogOut
@@ -41,16 +39,6 @@ export default function Sidebar() {
       name: 'Event History',
       href: '/events/history',
       icon: History
-    },
-    {
-      name: 'Room Management',
-      href: '/room',
-      icon: Users
-    },
-    {
-      name: 'Display Settings',
-      href: '/display/settings',
-      icon: MonitorPlay
     }
   ];
 
@@ -100,26 +88,8 @@ export default function Sidebar() {
           })}
         </nav>
 
-        {/* Active Event Status */}
-        <div className="p-4 pr-0 pl-5">
-          <div className="rounded-lg bg-dark-card backdrop-blur-sm p-4 pr-0 shadow-lg">
-            <h3 className="text-sm font-medium text-text-primary mb-2">Active Event</h3>
-            <div className="flex items-center space-x-3">
-              <div className="relative">
-                <div className="w-2 h-2 rounded-full bg-status-success animate-pulse" />
-                <div className="absolute inset-0 w-2 h-2 rounded-full bg-status-success animate-ping opacity-75" />
-              </div>
-              <span className="text-sm text-text-secondary font-medium">Poker Tournament</span>
-            </div>
-          </div>
-        </div>
-
-  
-
         {/* Spacer */}
         <div className="flex-1" />
-
-      
 
         {/* User Profile & Settings */}
         <div className="p-4 pr-0 border-t border-dark-border/80 ml-5 pl-0">

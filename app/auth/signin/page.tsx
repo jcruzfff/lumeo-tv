@@ -12,20 +12,29 @@ export default function SignIn() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Sign in attempt with email:', email);
+    
     try {
+      console.log('Calling NextAuth signIn...');
       const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
+        callbackUrl: '/dashboard'
       });
+      
+      console.log('Sign in result:', result);
 
       if (result?.error) {
+        console.error('Sign in error:', result.error);
         setError(result.error);
       } else {
-        router.push('/dashboard'); // Redirect to dashboard
+        console.log('Sign in successful, redirecting to dashboard...');
+        router.push('/dashboard');
         router.refresh();
       }
-    } catch  {
+    } catch (error) {
+      console.error('Sign in error:', error);
       setError('An error occurred during sign in');
     }
   };

@@ -55,8 +55,8 @@ export default function PokerTable({ seats, onAssignSeatAction, onEmptySeatActio
   }
 
   return (
-    <TooltipProvider>
-      <div className="relative w-full h-0 pb-[100%]">
+    <TooltipProvider delayDuration={0}>
+      <div className="relative w-full h-0 pb-[100%] z-0">
         <div className="absolute inset-0 bg-green-600/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-xl">
           <div className="w-[80%] h-[60%] bg-green-700/90 backdrop-blur-sm rounded-[100px] flex flex-col items-center justify-center border border-white/10">
             <span className="text-white/90 text-base font-medium">Poker Table</span>
@@ -82,7 +82,7 @@ export default function PokerTable({ seats, onAssignSeatAction, onEmptySeatActio
               <Tooltip key={index}>
                 <TooltipTrigger asChild>
                   <div
-                    className={`absolute w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 shadow-lg backdrop-blur-sm ${
+                    className={`absolute w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 shadow-lg backdrop-blur-sm z-20 ${
                       player
                         ? hoveredSeat === index
                           ? "bg-status-error/90 text-white border border-white/10"
@@ -104,7 +104,7 @@ export default function PokerTable({ seats, onAssignSeatAction, onEmptySeatActio
                     )}
                   </div>
                 </TooltipTrigger>
-                <TooltipContent className="bg-dark-card border border-dark-border/20 text-text-primary">
+                <TooltipContent side="top" sideOffset={5} className="bg-dark-card border border-dark-border/20 text-text-primary z-[9999] relative">
                   {player ? (
                     <p>Seat {index + 1}: {player.name} (Click to remove)</p>
                   ) : (
