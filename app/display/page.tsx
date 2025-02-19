@@ -13,7 +13,7 @@ const formatTime = (seconds: number): string => {
 };
 
 export default function Display() {
-  const { activeTimer, pokerState, basketballState, customTimerState, setPokerState, setBasketballState, setCustomTimerState, setActiveTimer } = useTimer();
+  const { activeTimer, pokerState, basketballState, customTimerState, setBasketballState, setActiveTimer, setPokerState } = useTimer();
   const { mediaItems, currentMediaIndex, setCurrentMediaIndex, setMediaItems } = useMedia();
   const { waitingList, isRoomManagementEnabled, showWaitlistOnDisplay, setState: setPokerRoomState, tables } = usePokerRoom();
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -21,6 +21,18 @@ export default function Display() {
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentGameTime, setCurrentGameTime] = useState(0);
+
+  // Add debug logs for waitlist state
+  useEffect(() => {
+    console.log('Display Page State:', {
+      waitingList,
+      isRoomManagementEnabled,
+      showWaitlistOnDisplay,
+      isTimerPage,
+      activeTimer
+    });
+  }, [waitingList, isRoomManagementEnabled, showWaitlistOnDisplay, isTimerPage, activeTimer]);
 
   // Set isClient to true once component mounts
   useEffect(() => {
@@ -36,62 +48,53 @@ export default function Display() {
         // Try to load media items from localStorage first
         const savedMediaState = localStorage.getItem('mediaState');
         if (savedMediaState) {
-          const { mediaItems: savedMediaItems } = JSON.parse(savedMediaState);
-          if (savedMediaItems && savedMediaItems.length > 0) {
-            setMediaItems(savedMediaItems);
-          }
+          const { mediaItems: savedMediaItems, currentMediaIndex: savedIndex } = JSON.parse(savedMediaState);
+          console.log('Display - Loading media state:', { 
+            mediaItems: savedMediaItems, 
+            currentIndex: savedIndex,
+            totalItems: savedMediaItems.length 
+          });
+          setMediaItems(savedMediaItems);
+          setCurrentMediaIndex(savedIndex || 0);
         }
 
         // Load poker room state from localStorage if available
         const savedPokerRoomState = localStorage.getItem('pokerRoomState');
+        console.log('Loaded poker room state from localStorage:', savedPokerRoomState);
+        
         if (savedPokerRoomState) {
           const pokerRoomState = JSON.parse(savedPokerRoomState);
-          console.log('Loading poker room state:', pokerRoomState);
-          setPokerRoomState(pokerRoomState);
+          console.log('Parsed poker room state:', pokerRoomState);
+          // Ensure room management settings are properly initialized
+          const updatedState = {
+            ...pokerRoomState,
+            isRoomManagementEnabled: true,
+            showWaitlistOnDisplay: true
+          };
+          console.log('Setting poker room state to:', updatedState);
+          setPokerRoomState(updatedState);
         } else {
-          console.log('No poker room state found in localStorage');
+          console.log('No saved poker room state found, initializing with defaults');
+          // Initialize poker room state if not present
+          const initialState = {
+            tables: [],
+            waitingList: [],
+            showRoomInfo: true,
+            isRoomManagementEnabled: true,
+            showWaitlistOnDisplay: true
+          };
+          setPokerRoomState(initialState);
+          localStorage.setItem('pokerRoomState', JSON.stringify(initialState));
         }
 
-        // Fetch event data for timer settings
-        const eventId = localStorage.getItem('activeEventId');
-        if (!eventId) {
-          setError('No active event found');
-          setIsLoading(false);
-          return;
-        }
-
-        const response = await fetch(`/api/events/${eventId}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch event data');
-        }
-
-        const event = await response.json();
-        console.log('Fetched event:', event);
-
-        // Set timer states based on event type
-        switch (event.type) {
-          case 'POKER':
-            setPokerState(event.settings);
-            setActiveTimer('poker');
-            break;
-          case 'BASKETBALL':
-            setBasketballState(event.settings);
-            setActiveTimer('basketball');
-            break;
-          case 'CUSTOM':
-            setCustomTimerState(event.settings);
-            setActiveTimer('custom');
-            break;
-        }
-
-        // Only use media items from database if none in localStorage
-        if (!savedMediaState && event.mediaItems && event.mediaItems.length > 0) {
-          setMediaItems(event.mediaItems);
-          // Store in localStorage for future use
-          localStorage.setItem('mediaState', JSON.stringify({
-            mediaItems: event.mediaItems,
-            currentMediaIndex: 0,
-          }));
+        // Load display settings
+        const savedDisplaySettings = localStorage.getItem('displaySettings');
+        if (savedDisplaySettings) {
+          const settings = JSON.parse(savedDisplaySettings);
+          console.log('Display - Media interval settings:', { 
+            interval: settings.mediaInterval,
+            showTimer: settings.showTimer
+          });
         }
 
         setIsLoading(false);
@@ -103,100 +106,84 @@ export default function Display() {
     };
 
     loadMediaAndEventData();
-  }, [isClient, setActiveTimer, setPokerState, setBasketballState, setCustomTimerState, setMediaItems, setPokerRoomState]);
+  }, [isClient, setMediaItems, setPokerRoomState, setCurrentMediaIndex]);
 
-  console.log('Display component rendered:', {
-    mediaItemsLength: mediaItems.length,
-    currentMediaIndex,
-    activeTimer,
-    isTimerPage
-  });
-
-  // Timer countdown effect - Only runs on display page
+  // Media cycling effect
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (activeTimer === 'basketball' && basketballState?.isRunning) {
-      interval = setInterval(() => {
-        if (!basketballState) return;
-        
-        const newGameTime = basketballState.gameTime - 1;
-        const newShotClockTime = basketballState.shotClockTime - 1;
-
-        if (newGameTime <= 0) {
-          // End of period
-          if (basketballState.period < 4) {
-            setBasketballState({
-              ...basketballState,
-              isRunning: false,
-              period: basketballState.period + 1,
-              gameTime: basketballState.gameTime,
-              shotClockTime: 24,
-            });
-          } else {
-            // End of game
-            setBasketballState({
-              ...basketballState,
-              isRunning: false,
-            });
-          }
-        } else {
-          setBasketballState({
-            ...basketballState,
-            gameTime: newGameTime,
-            shotClockTime: newShotClockTime <= 0 ? 24 : newShotClockTime,
-          });
-        }
-      }, 1000);
-    } else if (activeTimer === 'poker' && pokerState?.isRunning) {
-      interval = setInterval(() => {
-        if (!pokerState) return;
-
-        if (pokerState.timeRemaining <= 0) {
-          if (pokerState.currentLevel < pokerState.levels.length - 1) {
-            setPokerState({
-              ...pokerState,
-              currentLevel: pokerState.currentLevel + 1,
-              timeRemaining: pokerState.levels[pokerState.currentLevel + 1].duration * 60,
-            });
-          } else {
-            setPokerState({
-              ...pokerState,
-              isRunning: false,
-            });
-          }
-        } else {
-          setPokerState({
-            ...pokerState,
-            timeRemaining: pokerState.timeRemaining - 1,
-            totalPlayTime: pokerState.totalPlayTime + 1,
-          });
-        }
-      }, 1000);
-    } else if (activeTimer === 'custom' && customTimerState?.isRunning) {
-      interval = setInterval(() => {
-        if (!customTimerState) return;
-
-        if (customTimerState.timeRemaining <= 0) {
-          setCustomTimerState({
-            ...customTimerState,
-            isRunning: false,
-          });
-        } else {
-          setCustomTimerState({
-            ...customTimerState,
-            timeRemaining: customTimerState.timeRemaining - 1,
-          });
-        }
-      }, 1000);
+    if (!isClient || mediaItems.length === 0) {
+      console.log('Media cycle skipped: Client not ready or no media items');
+      return;
     }
 
-    return () => {
-      if (interval) {
-        clearInterval(interval);
+    const savedDisplaySettings = localStorage.getItem('displaySettings');
+    const displaySettings = savedDisplaySettings ? JSON.parse(savedDisplaySettings) : { mediaInterval: 15 };
+    const intervalInMs = displaySettings.mediaInterval * 1000;
+    
+    console.log('Setting up media cycle:', {
+      isTimerPage,
+      currentIndex: currentMediaIndex,
+      totalItems: mediaItems.length,
+      intervalMs: intervalInMs,
+      timestamp: new Date().toISOString()
+    });
+
+    const cycleTimeout = setInterval(() => {
+      console.log('Media cycle triggered:', {
+        wasTimerPage: isTimerPage,
+        currentIndex: currentMediaIndex,
+        totalItems: mediaItems.length,
+        timestamp: new Date().toISOString()
+      });
+
+      if (isTimerPage) {
+        setIsTimerPage(false);
+      } else {
+        const isLastMedia = currentMediaIndex === mediaItems.length - 1;
+        if (isLastMedia) {
+          // Update both states in a single render cycle
+          Promise.resolve().then(() => {
+            setIsTimerPage(true);
+            setCurrentMediaIndex(0);
+          });
+        } else {
+          setCurrentMediaIndex(currentMediaIndex + 1);
+        }
       }
+    }, intervalInMs);
+
+    return () => {
+      console.log('Clearing media cycle interval');
+      clearInterval(cycleTimeout);
     };
-  }, [activeTimer, basketballState, pokerState, customTimerState, setBasketballState, setPokerState, setCustomTimerState]);
+  }, [isClient, mediaItems.length, currentMediaIndex, isTimerPage, setCurrentMediaIndex]);
+
+  // Track media changes with more detailed logging
+  useEffect(() => {
+    console.log('Display - Media changed:', {
+      currentIndex: currentMediaIndex,
+      totalItems: mediaItems.length,
+      currentItem: mediaItems[currentMediaIndex],
+      isTimerPage,
+      timestamp: new Date().toISOString(),
+      nextState: isTimerPage ? 'will show media' : currentMediaIndex === mediaItems.length - 1 ? 'will show timer' : 'will show next media'
+    });
+  }, [currentMediaIndex, mediaItems, isTimerPage]);
+
+  // Timer countdown effect
+  useEffect(() => {
+    if (!isClient) return;
+
+    // No timer logic needed here as it's handled in TimerContext
+    return () => {};
+  }, [isClient]);
+
+  // Basketball timer effect with accurate timing
+  useEffect(() => {
+    if (!isClient || !basketballState?.isRunning) return;
+
+    // No timer logic needed here as it's handled in TimerContext
+    return () => {};
+  }, [isClient, basketballState?.isRunning]);
 
   // Poll for poker room state updates
   useEffect(() => {
@@ -241,43 +228,6 @@ export default function Display() {
     return () => clearInterval(interval);
   }, [isClient, setPokerRoomState, waitingList, isRoomManagementEnabled, showWaitlistOnDisplay, tables]);
 
-  // Media cycling effect - Now includes dedicated timer page in rotation
-  useEffect(() => {
-    console.log('Media cycling effect triggered:', {
-      isTimerPage,
-      currentMediaIndex,
-      mediaItemsLength: mediaItems.length
-    });
-
-    if (mediaItems.length === 0) {
-      console.log('No media items available');
-      return;
-    }
-
-    const cycleTimeout = setTimeout(() => {
-      console.log('Cycle timeout triggered');
-      if (isTimerPage) {
-        // Switch from timer page to first/next media
-        setIsTimerPage(false);
-      } else {
-        const isLastMedia = currentMediaIndex === mediaItems.length - 1;
-        if (isLastMedia) {
-          // If we're at the last media item, show timer page
-          setIsTimerPage(true);
-          setCurrentMediaIndex(0); // Reset to first media item
-        } else {
-          // Move to next media item
-          setCurrentMediaIndex(currentMediaIndex + 1);
-        }
-      }
-    }, 15000); // 15 seconds for both timer page and media
-
-    return () => {
-      console.log('Cleaning up cycle timeout');
-      clearTimeout(cycleTimeout);
-    };
-  }, [isTimerPage, currentMediaIndex, mediaItems, setCurrentMediaIndex]);
-
   // Monitor state changes
   useEffect(() => {
     console.log('Detailed State:', {
@@ -321,6 +271,12 @@ export default function Display() {
     }
   }, [activeTimer, basketballState]);
 
+  useEffect(() => {
+    if (activeTimer === 'basketball' && basketballState) {
+      setCurrentGameTime(basketballState.gameTime);
+    }
+  }, [activeTimer, basketballState]);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen()
@@ -341,6 +297,213 @@ export default function Display() {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    // Listen for event end broadcasts
+    const bc = new BroadcastChannel('lumeo-events');
+    bc.onmessage = (event) => {
+      if (event.data.type === 'END_EVENT') {
+        // Clear all local state
+        localStorage.removeItem('timerState');
+        localStorage.removeItem('activeEventId');
+        localStorage.removeItem('mediaState');
+        localStorage.removeItem('displaySettings');
+        localStorage.removeItem('pokerRoomState');
+        localStorage.removeItem('timerPersistentState');
+
+        // Clear React state
+        setMediaItems([]);
+        setCurrentMediaIndex(0);
+        setIsTimerPage(true);
+        setPokerRoomState({
+          tables: [],
+          waitingList: [],
+          showRoomInfo: true,
+          isRoomManagementEnabled: false,
+          showWaitlistOnDisplay: false
+        });
+
+        // Close the display window
+        window.close();
+      }
+    };
+
+    return () => {
+      bc.close();
+    };
+  }, [setMediaItems, setCurrentMediaIndex, setPokerRoomState]);
+
+  // Poll for basketball score updates
+  useEffect(() => {
+    if (!isClient || activeTimer !== 'basketball') return;
+
+    const loadState = () => {
+      const savedState = localStorage.getItem('timerState');
+      if (savedState) {
+        const parsedState = JSON.parse(savedState);
+        if (parsedState.basketballState) {
+          setBasketballState(parsedState.basketballState);
+        }
+      }
+    };
+
+    loadState();
+
+    const pollInterval = setInterval(() => {
+      const eventId = localStorage.getItem('activeEventId');
+      if (eventId) {
+        fetch(`/api/events/${eventId}/score`)
+          .then(res => res.json())
+          .then(data => {
+            if (setBasketballState) {
+              setBasketballState(prev => {
+                if (!prev) return prev;
+                return {
+                  ...prev,
+                  homeScore: data.homeScore,
+                  awayScore: data.awayScore
+                };
+              });
+            }
+          })
+          .catch(error => {
+            console.error('Error polling score:', error);
+          });
+      }
+    }, 1000);
+
+    return () => clearInterval(pollInterval);
+  }, [isClient, activeTimer, setBasketballState]);
+
+  useEffect(() => {
+    if (!isClient) return;
+
+    // Check if we have an active event
+    const eventId = localStorage.getItem('activeEventId');
+    if (!eventId) return;
+
+    // For basketball events
+    if (activeTimer === 'basketball' && basketballState) {
+      if (!basketballState.isRunning && currentGameTime <= 0) {
+        const savedTimerPersistentState = localStorage.getItem('timerPersistentState');
+        if (savedTimerPersistentState) {
+          const persistentState = JSON.parse(savedTimerPersistentState);
+          if (persistentState.period >= (basketballState.totalPeriods || 4)) {
+            // Game has ended naturally - update the event status
+            fetch(`/api/events/${eventId}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                status: 'ENDED',
+                settings: {
+                  ...basketballState,
+                  gameTime: 0,
+                  period: persistentState.period,
+                  winningTeam: basketballState.homeScore > basketballState.awayScore ? 'Home' : 
+                             basketballState.awayScore > basketballState.homeScore ? 'Away' : 'Tie',
+                  finalScore: {
+                    home: basketballState.homeScore,
+                    away: basketballState.awayScore
+                  }
+                }
+              }),
+            }).then(() => {
+              // Broadcast event end
+              const bc = new BroadcastChannel('lumeo-events');
+              bc.postMessage({ type: 'END_EVENT', eventId });
+              bc.close();
+              
+              // Redirect to history page
+              window.location.href = '/events/history';
+            }).catch(error => {
+              console.error('Error ending basketball event:', error);
+            });
+          }
+        }
+      }
+    }
+
+    // For poker events
+    if (activeTimer === 'poker' && pokerState) {
+      if (!pokerState.isRunning && pokerState.timeRemaining <= 0 && pokerState.currentLevel >= pokerState.levels.length - 1) {
+        // Tournament has ended naturally - update the event status
+        fetch(`/api/events/${eventId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: 'ENDED',
+            settings: {
+              ...pokerState,
+              isRunning: false,
+              gameDetails: {
+                totalLevels: pokerState.levels.length,
+                currentLevel: pokerState.currentLevel,
+                totalPlayTime: pokerState.totalPlayTime,
+                mediaCount: mediaItems.length
+              }
+            }
+          }),
+        }).then(() => {
+          // Broadcast event end
+          const bc = new BroadcastChannel('lumeo-events');
+          bc.postMessage({ type: 'END_EVENT', eventId });
+          bc.close();
+          
+          // Redirect to history page
+          window.location.href = '/events/history';
+        }).catch(error => {
+          console.error('Error ending poker event:', error);
+        });
+      }
+    }
+  }, [isClient, activeTimer, basketballState, pokerState, currentGameTime, mediaItems.length]);
+
+  // Update the useEffect for timer state
+  useEffect(() => {
+    if (!isClient) return;
+
+    const loadState = () => {
+      const timerState = localStorage.getItem('timerState');
+      if (timerState) {
+        try {
+          const { activeTimer: savedActiveTimer, pokerState: savedPokerState } = JSON.parse(timerState);
+          if (savedActiveTimer === 'poker' && savedPokerState) {
+            setActiveTimer('poker');
+            setPokerState(savedPokerState);
+          }
+        } catch (error) {
+          console.error('Error loading timer state:', error);
+        }
+      }
+    };
+
+    loadState();
+
+    // Listen for timer updates
+    const bc = new BroadcastChannel('lumeo-events');
+    bc.onmessage = (event) => {
+      if (event.data.type === 'TIMER_UPDATE') {
+        loadState();
+      } else if (event.data.type === 'END_EVENT') {
+        // Clear all state
+        localStorage.removeItem('timerState');
+        localStorage.removeItem('activeEventId');
+        localStorage.removeItem('mediaState');
+        localStorage.removeItem('displaySettings');
+        localStorage.removeItem('pokerRoomState');
+        localStorage.removeItem('timerPersistentState');
+        window.close();
+      }
+    };
+
+    return () => {
+      bc.close();
+    };
+  }, [isClient, setActiveTimer, setPokerState]);
 
   if (!isClient || isLoading) {
     return (
@@ -392,7 +555,7 @@ export default function Display() {
             alt="Display content"
             fill
             className="object-contain"
-            unoptimized // Since we're using local blob URLs
+            unoptimized
           />
         )
       )}
@@ -414,7 +577,7 @@ export default function Display() {
                 <div className="text-2xl font-semibold text-text-secondary">Away</div>
               </div>
               <div className="text-3xl text-text-secondary">
-                {basketballState.period === 2 ? 'Half' : 'Quarter'} {basketballState.period}
+                Period {basketballState.period} of {basketballState.totalPeriods}
               </div>
             </div>
           )}
@@ -433,7 +596,7 @@ export default function Display() {
                 <div className="text-sm font-semibold text-text-secondary">Away</div>
               </div>
               <div className="text-xl text-text-secondary">
-                {basketballState.period === 2 ? 'Half' : 'Quarter'} {basketballState.period}
+                Period {basketballState.period} of {basketballState.totalPeriods}
               </div>
             </div>
           )}
@@ -458,6 +621,13 @@ export default function Display() {
 
               {/* Main Waitlist Display */}
               {isRoomManagementEnabled && showWaitlistOnDisplay && waitingList.length > 0 && (
+                console.log('Waitlist display conditions:', {
+                  isRoomManagementEnabled,
+                  showWaitlistOnDisplay,
+                  waitingListLength: waitingList.length,
+                  waitingListData: waitingList,
+                  shouldDisplay: isRoomManagementEnabled && showWaitlistOnDisplay && waitingList.length > 0
+                }),
                 <div className="mt-8 pt-8 border-t border-dark-border/20">
                   <h3 className="text-2xl font-semibold mb-4 text-text-primary">Waiting List</h3>
                   <div className="flex flex-col items-center space-y-2">
@@ -486,14 +656,22 @@ export default function Display() {
               <div className="text-3xl mb-2 bg-dark-surface-lighter px-4 py-1 rounded-lg">
                 Blinds: {pokerState.levels[pokerState.currentLevel].smallBlind}/{pokerState.levels[pokerState.currentLevel].bigBlind}
               </div>
-              <div className="text-xl text-text-secondary">
+              <div className="text-xl text-text-secondary mb-4">
                 Level {pokerState.currentLevel + 1} of {pokerState.levels.length}
               </div>
 
-              {/* Compact Waitlist Display for overlay */}
+              {/* Overlay Waitlist Display */}
               {isRoomManagementEnabled && showWaitlistOnDisplay && waitingList.length > 0 && (
+                console.log('Overlay waitlist display conditions:', {
+                  isTimerPage,
+                  isRoomManagementEnabled,
+                  showWaitlistOnDisplay,
+                  waitingListLength: waitingList.length,
+                  waitingListData: waitingList,
+                  shouldDisplay: !isTimerPage && isRoomManagementEnabled && showWaitlistOnDisplay && waitingList.length > 0
+                }),
                 <div className="mt-4 pt-4 border-t border-dark-border/20 text-left">
-                  <h4 className="text-lg font-semibold mb-2 text-text-primary">Next Up:</h4>
+                  <h4 className="text-lg font-medium mb-2 text-text-primary">Next Up:</h4>
                   <div className="space-y-1">
                     {waitingList.slice(0, 3).map((player, index) => (
                       <div key={player.id} className="text-sm text-text-secondary">

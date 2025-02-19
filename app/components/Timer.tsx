@@ -1,6 +1,7 @@
 'use client';
 
 import { useTimer } from '../contexts/TimerContext';
+import { useEffect } from 'react';
 
 const formatTime = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60);
@@ -42,7 +43,7 @@ export default function Timer() {
           {basketballState.homeScore} - {basketballState.awayScore}
         </div>
         <div className="text-sm opacity-75">
-          Period {basketballState.period} | Shot Clock: {basketballState.shotClockTime}
+          Period {basketballState.period} of {basketballState.totalPeriods}
         </div>
       </div>
     );

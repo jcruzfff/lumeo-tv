@@ -30,8 +30,8 @@ model Event {
   mediaItems  MediaItem[]
   tables      Table[]     @relation("EventTables")
   waitingList Player[]    @relation("EventWaitingList")
-  creator     User        @relation(fields: [creatorId], references: [id])
-  creatorId   String
+  creator     User?       @relation(fields: [creatorId], references: [id])
+  creatorId   String?
   displayUrl  String?     @unique // Unique URL for sharing the display
   adminUrl    String?     @unique // Unique URL for admin access
 }

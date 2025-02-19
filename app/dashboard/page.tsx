@@ -26,7 +26,7 @@ export default function Dashboard() {
                 className="text-brand-primary"
               />
             </div>
-            <h3 className="text-xl font-semibold text-text-primary mb-2">Poker Game</h3>
+            <h3 className="text-xl font-semibold text-text-primary mb-2">Poker</h3>
            
           </Link>
 
@@ -69,4 +69,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-}
+} 

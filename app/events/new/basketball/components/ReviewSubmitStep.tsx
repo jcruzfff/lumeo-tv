@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { BlindLevel, MediaItem } from '@/app/types';
+import { MediaItem } from '@/app/types';
 import Image from 'next/image';
 
 interface ReviewSubmitStepProps {
   eventName: string;
-  blindLevels: BlindLevel[];
-  roomManagement: {
-    isRoomManagementEnabled: boolean;
-    showWaitlistOnDisplay: boolean;
+  basketballSettings: {
+    quarterLength: number;
+    totalPeriods: number;
+    homeScore: number;
+    awayScore: number;
+    gameTime: number;
   };
   mediaItems: MediaItem[];
   displaySettings: {
@@ -24,61 +26,29 @@ interface ReviewSubmitStepProps {
   };
 }
 
-function GameDetailsCard({ eventName, blindLevels, roomManagement, displaySettings, mediaItems }: ReviewSubmitStepProps) {
-  const currentLevel = blindLevels[0];
-  const nextLevel = blindLevels[1];
-  const totalPlayTime = blindLevels.reduce((total, level) => total + level.duration, 0);
-  const formattedTime = `${String(currentLevel?.duration || 0).padStart(2, '0')}:00`;
-
-  // Log display and media settings
-  console.log('Review Step - Display and Media Settings:', {
-    mediaInterval: displaySettings.mediaInterval,
-    totalMediaItems: mediaItems.length,
-    aspectRatio: displaySettings.aspectRatio,
-    showTimer: displaySettings.showTimer,
-    timerPosition: displaySettings.timerPosition
-  });
+function GameDetailsCard({ eventName, basketballSettings, displaySettings, mediaItems }: ReviewSubmitStepProps) {
+  console.log('ReviewSubmitStep received settings:', basketballSettings);
+  const periodLength = Math.floor(basketballSettings.gameTime / 60);
+  console.log('Calculated period length:', periodLength);
+  const formattedPeriodLength = isNaN(periodLength) ? '--' : `${periodLength} min`;
+  const formattedTime = isNaN(periodLength) ? '--:--' : `${String(periodLength).padStart(2, '0')}:00`;
 
   return (
     <div className="bg-[#1F1F21] backdrop-blur-md border border-[#2C2C2E] rounded-2xl p-6">
       <h3 className="text-lg font-semibold text-text-primary mb-4">{eventName}</h3>
-      <div className="text-[64px] font-bold text-white leading-none mb-8">{formattedTime}</div>
+      <div className="text-[64px] font-bold text-white leading-none mb-8">
+        {formattedTime}
+      </div>
       
       <div className="grid grid-cols-2 gap-x-8 gap-y-6 pt-10">
         <div>
-          <div className="text-sm text-text-secondary mb-1">Starting Blinds</div>
-          <div className="text-xl font-mono text-text-primary">{currentLevel?.smallBlind}/{currentLevel?.bigBlind}</div>
+          <div className="text-sm text-text-secondary mb-1">Period Length</div>
+          <div className="text-xl font-mono text-text-primary">{formattedPeriodLength}</div>
         </div>
         
         <div>
-          <div className="text-sm text-text-secondary mb-1">Next Level Blinds</div>
-          <div className="text-xl font-mono text-text-primary">
-            {nextLevel ? `${nextLevel.smallBlind}/${nextLevel.bigBlind}` : 'Final Level'}
-          </div>
-        </div>
-
-        <div>
-          <div className="text-sm text-text-secondary mb-1">Total Levels</div>
-          <div className="text-xl font-mono text-text-primary">{blindLevels.length}</div>
-        </div>
-
-        <div>
-          <div className="text-sm text-text-secondary mb-1">Total Play Time</div>
-          <div className="text-xl font-mono text-text-primary">{totalPlayTime} min</div>
-        </div>
-
-        <div>
-          <div className="text-sm text-text-secondary mb-1">Room Management</div>
-          <div className="text-xl font-mono text-text-primary">
-            {roomManagement.isRoomManagementEnabled ? 'Enabled' : 'Disabled'}
-          </div>
-        </div>
-
-        <div>
-          <div className="text-sm text-text-secondary mb-1">Waitlist Display</div>
-          <div className="text-xl font-mono text-text-primary">
-            {roomManagement.showWaitlistOnDisplay ? 'Visible' : 'Hidden'}
-          </div>
+          <div className="text-sm text-text-secondary mb-1">Total Periods</div>
+          <div className="text-xl font-mono text-text-primary">{basketballSettings.totalPeriods}</div>
         </div>
 
         <div>
@@ -97,8 +67,7 @@ function GameDetailsCard({ eventName, blindLevels, roomManagement, displaySettin
 
 export default function ReviewSubmitStep({
   eventName,
-  blindLevels,
-  roomManagement,
+  basketballSettings,
   mediaItems,
   displaySettings,
 }: ReviewSubmitStepProps) {
@@ -131,8 +100,7 @@ export default function ReviewSubmitStep({
         {/* Left Column - Game Details */}
         <GameDetailsCard 
           eventName={eventName}
-          blindLevels={blindLevels}
-          roomManagement={roomManagement}
+          basketballSettings={basketballSettings}
           displaySettings={displaySettings}
           mediaItems={mediaItems}
         />
@@ -176,10 +144,11 @@ export default function ReviewSubmitStep({
                 }}
               >
                 <div className="text-2xl font-mono whitespace-nowrap">
-                  {`${String(blindLevels[0]?.duration || 0).padStart(2, '0')}:00`}
+                  {isNaN(Math.floor(basketballSettings.gameTime / 60)) ? '--:--' : 
+                   `${String(Math.floor(basketballSettings.gameTime / 60)).padStart(2, '0')}:00`}
                 </div>
                 <div className="text-sm whitespace-nowrap">
-                  Blinds: {blindLevels[0]?.smallBlind}/{blindLevels[0]?.bigBlind}
+                  Period 1/{basketballSettings.totalPeriods}
                 </div>
               </div>
             )}

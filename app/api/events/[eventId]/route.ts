@@ -1,73 +1,15 @@
-import { NextResponse, type NextRequest } from 'next/server'
 import { prisma } from '@/app/lib/db'
-import type { Prisma } from '@prisma/client'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/auth.config'
-
-type EventSettings = Prisma.InputJsonValue
-
-interface EventUpdateData {
-  settings: EventSettings;
-  status?: 'ACTIVE' | 'ENDED';
-}
-
-async function getEvent(eventId: string) {
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    include: {
-      mediaItems: true,
-      tables: true,
-      waitingList: {
-        orderBy: {
-          position: 'asc',
-        },
-      },
-    },
-  })
-
-  if (!event) {
-    return NextResponse.json(
-      { error: 'Event not found' },
-      { status: 404 }
-    )
-  }
-
-  return NextResponse.json(event)
-}
-
-async function updateEvent(eventId: string, data: EventUpdateData) {
-  const event = await prisma.event.update({
-    where: { id: eventId },
-    data: {
-      settings: data.settings,
-      status: data.status,
-      ...(data.status === 'ENDED' ? { endedAt: new Date() } : {}),
-    },
-  })
-
-  return NextResponse.json(event)
-}
-
-async function deleteEvent(eventId: string) {
-  await prisma.event.delete({
-    where: { id: eventId },
-  })
-
-  return NextResponse.json({ success: true })
-}
 
 export const dynamic = 'force-dynamic'
 export const dynamicParams = true
 
-interface RouteSegmentProps {
-  params: { eventId: string }
-}
-
 export async function GET(
-  req: NextRequest,
-  props: RouteSegmentProps
+  request: Request,
+  { params }: { params: { eventId: string } }
 ) {
-  const { eventId } = props.params
+  const { eventId } = params
   console.log('GET request received for eventId:', eventId)
   
   try {
@@ -76,77 +18,110 @@ export async function GET(
 
     if (!session) {
       console.log('Unauthorized access attempt')
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+      })
     }
 
-    return await getEvent(eventId)
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: {
+        mediaItems: true,
+        tables: true,
+        waitingList: {
+          orderBy: {
+            position: 'asc',
+          },
+        },
+      },
+    })
+
+    if (!event) {
+      return new Response(JSON.stringify({ error: 'Event not found' }), {
+        status: 404,
+      })
+    }
+
+    return new Response(JSON.stringify(event))
   } catch (error) {
     console.error('Error in GET /api/events/[eventId]:', error)
-    return NextResponse.json(
-      { error: 'Error fetching event' },
-      { status: 500 }
-    )
+    return new Response(JSON.stringify({ error: 'Error fetching event' }), {
+      status: 500,
+    })
   }
 }
 
 export async function PATCH(
-  req: NextRequest,
-  props: RouteSegmentProps
+  request: Request,
+  { params }: { params: { eventId: string } }
 ) {
-  const { eventId } = props.params
-  console.log('PATCH request received for eventId:', eventId)
-  
   try {
     const session = await getServerSession(authOptions)
-    console.log('Session state:', session ? 'Authenticated' : 'Unauthenticated')
-
     if (!session) {
-      console.log('Unauthorized access attempt')
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+      })
     }
 
-    const body = await req.json()
-    return await updateEvent(eventId, body)
+    const { status, settings } = await request.json()
+    
+    // Validate the event exists
+    const event = await prisma.event.findUnique({
+      where: { id: params.eventId },
+    })
+
+    if (!event) {
+      return new Response(JSON.stringify({ error: 'Event not found' }), {
+        status: 404,
+      })
+    }
+
+    // Update the event
+    const updatedEvent = await prisma.event.update({
+      where: { id: params.eventId },
+      data: {
+        status,
+        settings: {
+          ...settings,
+          // Ensure period is within bounds
+          period: Math.min(settings.period || 1, settings.totalPeriods || 4),
+          // Default to 4 periods if not specified
+          totalPeriods: settings.totalPeriods || 4
+        },
+        ...(status === 'ENDED' ? { endedAt: new Date() } : {}),
+      },
+    })
+
+    return new Response(JSON.stringify(updatedEvent))
   } catch (error) {
-    console.error('Error in PATCH /api/events/[eventId]:', error)
-    return NextResponse.json(
-      { error: 'Error updating event' },
-      { status: 500 }
-    )
+    console.error('Error updating event:', error)
+    return new Response(JSON.stringify({ error: 'Failed to update event' }), {
+      status: 500,
+    })
   }
 }
 
 export async function DELETE(
-  req: NextRequest,
-  props: RouteSegmentProps
+  request: Request,
+  { params }: { params: { eventId: string } }
 ) {
-  const { eventId } = props.params
-  console.log('DELETE request received for eventId:', eventId)
-  
   try {
     const session = await getServerSession(authOptions)
-    console.log('Session state:', session ? 'Authenticated' : 'Unauthenticated')
-
     if (!session) {
-      console.log('Unauthorized access attempt')
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+      })
     }
 
-    return await deleteEvent(eventId)
+    await prisma.event.delete({
+      where: { id: params.eventId },
+    })
+
+    return new Response(JSON.stringify({ success: true }))
   } catch (error) {
-    console.error('Error in DELETE /api/events/[eventId]:', error)
-    return NextResponse.json(
-      { error: 'Error deleting event' },
-      { status: 500 }
-    )
+    console.error('Error deleting event:', error)
+    return new Response(JSON.stringify({ error: 'Failed to delete event' }), {
+      status: 500,
+    })
   }
 } 

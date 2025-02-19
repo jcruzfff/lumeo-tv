@@ -20,7 +20,7 @@ export interface BasketballTimerState {
   period: number;
   homeScore: number;
   awayScore: number;
-  shotClockTime: number;
+  totalPeriods: number;
 }
 
 export interface CustomTimerState {

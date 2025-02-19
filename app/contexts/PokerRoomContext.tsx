@@ -38,14 +38,17 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       try {
         const savedState = localStorage.getItem('pokerRoomState');
+        console.log('PokerRoomContext - Loading initial state from localStorage:', savedState);
         if (savedState) {
-          console.log('Loading initial poker room state:', JSON.parse(savedState));
-          return JSON.parse(savedState);
+          const parsedState = JSON.parse(savedState);
+          console.log('PokerRoomContext - Parsed initial state:', parsedState);
+          return parsedState;
         }
       } catch (error) {
         console.error('Error loading initial poker room state:', error);
       }
     }
+    console.log('PokerRoomContext - Using default initial state');
     return {
       tables: [],
       waitingList: [],
@@ -68,7 +71,7 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
     if (!isClient) return;
 
     try {
-      console.log('Saving poker room state to localStorage:', state);
+      console.log('PokerRoomContext - Saving state to localStorage:', state);
       localStorage.setItem('pokerRoomState', JSON.stringify(state));
     } catch (error) {
       console.error('Error saving poker room state:', error);
@@ -126,24 +129,39 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addToWaitingList = (name: string) => {
-    setState(prev => ({
-      ...prev,
-      waitingList: [...prev.waitingList, { id: uuidv4(), name }],
-    }));
+    console.log('PokerRoomContext - Adding player to waitlist:', name);
+    setState(prev => {
+      const newState = {
+        ...prev,
+        waitingList: [...prev.waitingList, { id: uuidv4(), name }],
+      };
+      console.log('PokerRoomContext - New state after adding player:', newState);
+      return newState;
+    });
   };
 
   const removeFromWaitingList = (index: number) => {
-    setState(prev => ({
-      ...prev,
-      waitingList: prev.waitingList.filter((_, i) => i !== index),
-    }));
+    console.log('PokerRoomContext - Removing player at index:', index);
+    setState(prev => {
+      const newState = {
+        ...prev,
+        waitingList: prev.waitingList.filter((_, i) => i !== index),
+      };
+      console.log('PokerRoomContext - New state after removing player:', newState);
+      return newState;
+    });
   };
 
   const reorderWaitingList = (newOrder: Player[]) => {
-    setState(prev => ({
-      ...prev,
-      waitingList: newOrder,
-    }));
+    console.log('PokerRoomContext - Reordering waitlist:', newOrder);
+    setState(prev => {
+      const newState = {
+        ...prev,
+        waitingList: newOrder,
+      };
+      console.log('PokerRoomContext - New state after reordering:', newState);
+      return newState;
+    });
   };
 
   const toggleRoomInfo = () => {
@@ -154,18 +172,28 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setIsRoomManagementEnabled = (enabled: boolean) => {
-    setState(prev => ({
-      ...prev,
-      isRoomManagementEnabled: enabled,
-      showWaitlistOnDisplay: enabled ? prev.showWaitlistOnDisplay : false,
-    }));
+    console.log('PokerRoomContext - Setting room management enabled:', enabled);
+    setState(prev => {
+      const newState = {
+        ...prev,
+        isRoomManagementEnabled: enabled,
+        showWaitlistOnDisplay: enabled ? prev.showWaitlistOnDisplay : false,
+      };
+      console.log('PokerRoomContext - New state after setting room management:', newState);
+      return newState;
+    });
   };
 
   const setShowWaitlistOnDisplay = (show: boolean) => {
-    setState(prev => ({
-      ...prev,
-      showWaitlistOnDisplay: show,
-    }));
+    console.log('PokerRoomContext - Setting show waitlist on display:', show);
+    setState(prev => {
+      const newState = {
+        ...prev,
+        showWaitlistOnDisplay: show,
+      };
+      console.log('PokerRoomContext - New state after setting show waitlist:', newState);
+      return newState;
+    });
   };
 
   if (!isClient) {

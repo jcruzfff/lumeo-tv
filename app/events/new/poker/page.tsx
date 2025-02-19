@@ -8,6 +8,10 @@ import MediaSelectionStep from './components/MediaSelectionStep';
 import DisplaySettingsStep from './components/DisplaySettingsStep';
 import ReviewSubmitStep from './components/ReviewSubmitStep';
 import { BlindLevel, MediaItem } from '@/app/types';
+import { useRouter } from 'next/navigation';
+import { useTimer } from '@/app/contexts/TimerContext';
+import { useMedia } from '@/app/contexts/MediaContext';
+import { usePokerRoom } from '@/app/contexts/PokerRoomContext';
 
 const steps = [
   { id: 1, name: 'Set Blind Levels', href: '#' },
@@ -39,7 +43,17 @@ export default function NewPokerEvent() {
         timerBackground: string;
       };
     };
-  }>({});
+  }>({
+    roomManagement: {
+      isRoomManagementEnabled: false,
+      showWaitlistOnDisplay: false
+    }
+  });
+
+  const router = useRouter();
+  const { setActiveTimer, setPokerState } = useTimer();
+  const { storeMediaItems } = useMedia();
+  const { setState: setPokerRoomState } = usePokerRoom();
 
   const handleBlindLevelsComplete = (blindLevels: BlindLevel[]) => {
     setEventData({ ...eventData, blindLevels });
@@ -84,6 +98,106 @@ export default function NewPokerEvent() {
     } else {
       // If we're at the first step, go back to the dashboard
       window.location.href = '/dashboard';
+    }
+  };
+
+  const handleLaunchLumeo = async () => {
+    try {
+      if (!eventData.blindLevels || eventData.blindLevels.length === 0) {
+        throw new Error('Blind levels not configured');
+      }
+
+      // Create the initial poker state
+      const pokerSettings = {
+        isRunning: true,
+        currentLevel: 0,
+        timeRemaining: eventData.blindLevels[0].duration * 60, // Convert minutes to seconds
+        levels: eventData.blindLevels,
+        breakDuration: 0,
+        totalPlayTime: eventData.blindLevels.reduce((total, level) => total + level.duration, 0)
+      };
+
+      console.log('Creating poker event with settings:', pokerSettings);
+
+      // Create the event in the database
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: eventName,
+          type: 'POKER',
+          status: 'ACTIVE',
+          startedAt: new Date().toISOString(),
+          settings: pokerSettings,
+          mediaItems: eventData.mediaItems || [],
+          roomManagement: eventData.roomManagement || {
+            isRoomManagementEnabled: false,
+            showWaitlistOnDisplay: false
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const responseData = await response.json();
+        throw new Error(responseData.error || 'Failed to create event');
+      }
+
+      const event = await response.json();
+      console.log('Event created:', event);
+
+      // Update timer state
+      setPokerState(pokerSettings);
+      setActiveTimer('poker');
+
+      // Store media items
+      if (eventData.mediaItems) {
+        storeMediaItems(eventData.mediaItems);
+        localStorage.setItem('mediaState', JSON.stringify({
+          mediaItems: eventData.mediaItems,
+          currentMediaIndex: 0,
+        }));
+      }
+
+      // Store display settings
+      if (eventData.displaySettings) {
+        localStorage.setItem('displaySettings', JSON.stringify(eventData.displaySettings));
+      }
+
+      // Store room management state if enabled
+      if (eventData.roomManagement?.isRoomManagementEnabled) {
+        // Get existing poker room state
+        const existingState = localStorage.getItem('pokerRoomState');
+        const parsedExistingState = existingState ? JSON.parse(existingState) : null;
+        
+        setPokerRoomState({
+          tables: parsedExistingState?.tables || [],
+          waitingList: parsedExistingState?.waitingList || [], // Preserve existing waitlist
+          showRoomInfo: true,
+          isRoomManagementEnabled: eventData.roomManagement.isRoomManagementEnabled,
+          showWaitlistOnDisplay: eventData.roomManagement.showWaitlistOnDisplay
+        });
+      }
+
+      // Store the event ID
+      localStorage.setItem('activeEventId', event.id);
+
+      // Get the actual host URL and open display in new window
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      const displayUrl = `${protocol}//${host}/display`;
+      window.open(displayUrl, '_blank');
+
+      // Navigate to active events
+      router.push('/events/active');
+    } catch (error) {
+      console.error('Error launching display:', error);
+      if (error instanceof Error) {
+        alert(`Failed to launch display: ${error.message}`);
+      } else {
+        alert('Failed to launch display. Please try again.');
+      }
     }
   };
 
@@ -222,7 +336,7 @@ export default function NewPokerEvent() {
           {currentStep === 5 && (
             <div className="mt-12">
               <button
-                onClick={() => {/* TODO: Implement launch functionality */}}
+                onClick={handleLaunchLumeo}
                 className="w-full max-w-md mx-auto block px-8 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-medium rounded-lg transition-colors"
               >
                 Launch Lumeo

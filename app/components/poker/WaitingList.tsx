@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { X, GripVertical } from "lucide-react"
@@ -77,6 +77,10 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
   const [showRemoveDialog, setShowRemoveDialog] = useState(false)
   const [showClearListDialog, setShowClearListDialog] = useState(false)
 
+  useEffect(() => {
+    console.log('WaitingList Component - Current players:', players);
+  }, [players]);
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -87,18 +91,21 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (newPlayer.trim()) {
+      console.log('WaitingList Component - Adding new player:', newPlayer.trim());
       onAddPlayerAction(newPlayer.trim())
       setNewPlayer("")
     }
   }
 
   const handleRemoveClick = (index: number) => {
+    console.log('WaitingList Component - Initiating remove for player at index:', index);
     setSelectedPlayerIndex(index)
     setShowRemoveDialog(true)
   }
 
   const handleConfirmRemove = () => {
     if (selectedPlayerIndex !== null) {
+      console.log('WaitingList Component - Confirming remove for player at index:', selectedPlayerIndex);
       onRemovePlayerAction(selectedPlayerIndex)
     }
     setShowRemoveDialog(false)
@@ -109,9 +116,11 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
     const { active, over } = event
 
     if (over && active.id !== over.id) {
+      console.log('WaitingList Component - Reordering players:', { active, over });
       const oldIndex = players.findIndex(p => p.id === active.id)
       const newIndex = players.findIndex(p => p.id === over.id)
       const newOrder = arrayMove(players, oldIndex, newIndex)
+      console.log('WaitingList Component - New player order:', newOrder);
       onReorderPlayersAction(newOrder)
     }
   }

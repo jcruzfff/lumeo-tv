@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Monitor, Tv, Clock, Eye } from 'lucide-react';
 import { MediaItem } from '@/app/types';
 import Image from 'next/image';
@@ -36,12 +36,8 @@ export default function DisplaySettingsStep({ onCompleteAction, selectedMedia }:
   const handleSettingChange = <K extends keyof DisplaySettings>(key: K, value: DisplaySettings[K]) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
+    onCompleteAction(newSettings);
   };
-
-  // Call onCompleteAction when component unmounts or when settings change
-  useEffect(() => {
-    onCompleteAction(settings);
-  }, [settings, onCompleteAction]);
 
   // Preview content with smaller size
   const previewContent = (

@@ -2,6 +2,7 @@ import { usePokerRoom } from '@/app/contexts/PokerRoomContext';
 import TableManager from '@/app/components/poker/TableManager';
 import WaitingList from '@/app/components/poker/WaitingList';
 import { Button } from '@/app/components/ui/button';
+import { useEffect } from 'react';
 
 interface RoomManagementStepProps {
   onCompleteAction: (roomSettings: { isRoomManagementEnabled: boolean; showWaitlistOnDisplay: boolean }) => void;
@@ -31,6 +32,13 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
       showWaitlistOnDisplay: showWaitlist
     });
   };
+
+  // Ensure room management is off by default
+  useEffect(() => {
+    setIsRoomManagementEnabled(false);
+    setShowWaitlistOnDisplay(false);
+    handleSettingsChange(false, false);
+  }, []);
 
   return (
     <div className="animate-fade-in">

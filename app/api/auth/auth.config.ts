@@ -1,8 +1,5 @@
 import type { AuthOptions } from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
 
 declare module "next-auth" {
   interface User {
@@ -26,49 +23,40 @@ declare module "next-auth/jwt" {
 }
 
 export const authOptions: AuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  secret: process.env.NEXTAUTH_SECRET || "your-secret-key",
   providers: [
     CredentialsProvider({
-      name: "credentials",
+      id: "credentials",
+      name: "Access Code",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Access Code", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Invalid credentials");
-        }
-
-        const user = await prisma.user.findUnique({
-          where: {
-            email: credentials.email
+        try {
+          if (credentials?.password !== 'admin123') {
+            return null;
           }
-        });
 
-        if (!user || !user.password) {
-          throw new Error("User not found");
+          return {
+            id: "1",
+            email: credentials?.email,
+            name: "Admin",
+            isAdmin: true
+          };
+        } catch {
+          return null;
         }
-
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
-
-        if (!isPasswordValid) {
-          throw new Error("Invalid credentials");
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          isAdmin: user.isAdmin
-        };
       }
     })
   ],
+  pages: {
+    signIn: "/auth/signin",
+    error: "/auth/error"
+  },
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
     async jwt({ token, user }) {
@@ -83,9 +71,5 @@ export const authOptions: AuthOptions = {
       }
       return session;
     }
-  },
-  pages: {
-    signIn: "/auth/signin",
-    error: "/auth/error"
   }
 }; 

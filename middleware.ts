@@ -7,17 +7,13 @@ export async function middleware(req: NextRequest) {
   const isAuthPage = req.nextUrl.pathname.startsWith('/auth');
   const isApiAuthRoute = req.nextUrl.pathname.startsWith('/api/auth');
   const isAccessPage = req.nextUrl.pathname === '/auth/access';
+  const isSignInPage = req.nextUrl.pathname === '/auth/signin';
   const isLandingPage = req.nextUrl.pathname === '/';
   const isDisplayPage = req.nextUrl.pathname.startsWith('/display');
   const isDashboardPage = req.nextUrl.pathname.startsWith('/dashboard');
 
-  // Allow access to the landing page
-  if (isLandingPage) {
-    return NextResponse.next();
-  }
-
-  // Allow access to display page
-  if (isDisplayPage) {
+  // Allow access to the landing page and display page
+  if (isLandingPage || isDisplayPage) {
     return NextResponse.next();
   }
 
@@ -30,20 +26,21 @@ export async function middleware(req: NextRequest) {
   const accessVerified = req.cookies.get('accessVerified')?.value === 'true';
 
   // If not verified and not on access page, redirect to access page
-  if (!accessVerified && !isAccessPage && !isLandingPage) {
-    const callbackUrl = req.nextUrl.pathname + req.nextUrl.search;
-    const accessUrl = new URL('/auth/access', req.url);
-    if (callbackUrl !== '/') {
-      accessUrl.searchParams.set('callbackUrl', callbackUrl);
-    }
-    return NextResponse.redirect(accessUrl);
+  if (!accessVerified && !isAccessPage) {
+    return NextResponse.redirect(new URL('/auth/access', req.url));
   }
 
   // If verified but not authenticated and trying to access protected routes
-  if (!token && (isDashboardPage || (!isAuthPage && !isLandingPage))) {
-    const signInUrl = new URL('/auth/signin', req.url);
-    signInUrl.searchParams.set('callbackUrl', req.nextUrl.pathname);
-    return NextResponse.redirect(signInUrl);
+  if (!token) {
+    // Allow access to signin page
+    if (isSignInPage) {
+      return NextResponse.next();
+    }
+    
+    // Redirect to signin for all other routes
+    if (isDashboardPage || (!isAuthPage && !isLandingPage)) {
+      return NextResponse.redirect(new URL('/auth/signin', req.url));
+    }
   }
 
   // If authenticated but trying to access auth pages

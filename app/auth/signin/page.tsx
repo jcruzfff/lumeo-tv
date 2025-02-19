@@ -9,13 +9,14 @@ export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Sign in attempt with email:', email);
+    setIsLoading(true);
+    setError('');
     
     try {
-      console.log('Calling NextAuth signIn...');
       const result = await signIn('credentials', {
         email,
         password,
@@ -23,31 +24,40 @@ export default function SignIn() {
         callbackUrl: '/dashboard'
       });
       
-      console.log('Sign in result:', result);
-
-      if (result?.error) {
-        console.error('Sign in error:', result.error);
-        setError(result.error);
-      } else {
-        console.log('Sign in successful, redirecting to dashboard...');
-        router.push('/dashboard');
-        router.refresh();
+      if (!result?.ok) {
+        setError('Invalid access code');
+        return;
       }
+
+      router.push('/dashboard');
     } catch (error) {
       console.error('Sign in error:', error);
-      setError('An error occurred during sign in');
+      setError('An error occurred while signing in');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-dark-background">
       <div className="max-w-md w-full space-y-8 p-8 bg-dark-surface/80 backdrop-blur-sm border border-white/5 rounded-xl shadow-lg">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-text-primary">
-            Sign in to your account
-          </h2>
+        <div className="flex items-center space-x-2 mb-8">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center">
+            <span className="text-white font-bold text-xl">L</span>
+          </div>
+          <span className="text-xl font-semibold bg-gradient-to-r from-text-primary to-text-secondary bg-clip-text text-transparent">Lumeo</span>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+
+        <div>
+          <h2 className="text-2xl font-bold text-text-primary mb-2">
+            Welcome to Lumeo
+          </h2>
+          <p className="text-text-secondary mb-8">
+            Enter your email and password to continue
+          </p>
+        </div>
+
+        <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-lg shadow-sm space-y-4">
             <div>
               <label htmlFor="email" className="sr-only">
@@ -88,19 +98,11 @@ export default function SignIn() {
           <div>
             <button
               type="submit"
+              disabled={isLoading}
               className="group relative w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-brand-primary hover:bg-brand-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-primary/50 transition-colors duration-200 shadow-lg shadow-brand-primary/20 hover:shadow-xl hover:shadow-brand-primary/30"
             >
-              Sign in
+              {isLoading ? 'Please wait...' : 'Continue'}
             </button>
-          </div>
-          
-          <div className="text-center">
-            <p className="text-sm text-text-secondary">
-              Don&apos;t have an account?{' '}
-              <a href="/auth/signup" className="text-brand-primary hover:text-brand-primary/90 transition-colors">
-                Sign up
-              </a>
-            </p>
           </div>
         </form>
       </div>

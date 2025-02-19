@@ -107,14 +107,23 @@ export default function EventDashboard() {
         localStorage.setItem('pokerRoomState', JSON.stringify(pokerRoomState));
       } else if (timerMode === 'basketball') {
         eventSettings = {
-          isRunning: true,
+          isRunning: false, // Start paused
           gameTime: quarterLength * 60,
           period: 1,
-          homeScore,
-          awayScore,
-          shotClockTime: 24,
+          homeScore: 0,
+          awayScore: 0,
+          totalPeriods: totalPeriods
         };
         eventName = 'Basketball Game';
+
+        // Save initial state to localStorage
+        localStorage.setItem('timerPersistentState', JSON.stringify({
+          startTime: Date.now(),
+          initialGameTime: quarterLength * 60,
+          isRunning: false,
+          period: 1,
+          totalPeriods: totalPeriods
+        }));
       } else if (timerMode === 'custom') {
         eventSettings = {
           isRunning: true,

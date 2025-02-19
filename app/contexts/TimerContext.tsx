@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { PokerTimerState, BasketballTimerState, CustomTimerState } from '../types';
 
 interface TimerContextType {
@@ -10,163 +10,200 @@ interface TimerContextType {
   customTimerState: CustomTimerState | null;
   setActiveTimer: (timer: 'poker' | 'basketball' | 'custom' | null) => void;
   setPokerState: (state: PokerTimerState | null) => void;
-  setBasketballState: (state: BasketballTimerState | null) => void;
+  setBasketballState: (state: BasketballTimerState | ((prev: BasketballTimerState) => BasketballTimerState)) => void;
   setCustomTimerState: (state: CustomTimerState | null) => void;
+  updateBasketballScore: (homeScore: number, awayScore: number) => void;
+}
+
+interface TimerPersistentState {
+  startTime: number;
+  initialGameTime: number;
+  isRunning: boolean;
+  period: number;
+  totalPeriods?: number;
 }
 
 const TimerContext = createContext<TimerContextType | undefined>(undefined);
 
 export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [activeTimer, setActiveTimer] = useState<'poker' | 'basketball' | 'custom' | null>(null);
-  const [pokerState, setPokerState] = useState<PokerTimerState | null>(null);
-  const [basketballState, setBasketballState] = useState<BasketballTimerState | null>(null);
+  const [pokerState, setPokerStateInternal] = useState<PokerTimerState | null>(null);
+  const [basketballState, setBasketballStateInternal] = useState<BasketballTimerState | null>(null);
   const [customTimerState, setCustomTimerState] = useState<CustomTimerState | null>(null);
   const [isClient, setIsClient] = useState(false);
-  const isDisplayPage = isClient && typeof window !== 'undefined' && window.location.pathname === '/display';
 
-  // Set isClient to true once component mounts
-  useEffect(() => {
-    setIsClient(true);
+  // Add updateBasketballScore function
+  const updateBasketballScore = useCallback((homeScore: number, awayScore: number) => {
+    setBasketballStateInternal(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        homeScore,
+        awayScore
+      };
+    });
   }, []);
 
-  // Load state from localStorage on mount and start polling for updates if on display page
+  // Initialize state from localStorage
   useEffect(() => {
-    if (!isClient) return;
-
-    const loadState = () => {
+    setIsClient(true);
+    const savedState = localStorage.getItem('timerState');
+    if (savedState) {
       try {
-        const savedState = localStorage.getItem('timerState');
-        if (savedState) {
-          const { 
-            activeTimer: savedActiveTimer, 
-            pokerState: savedPokerState, 
-            basketballState: savedBasketballState,
-            customTimerState: savedCustomTimerState 
-          } = JSON.parse(savedState);
-          
-          setActiveTimer(savedActiveTimer);
-          setPokerState(savedPokerState);
-          setBasketballState(savedBasketballState);
-          setCustomTimerState(savedCustomTimerState);
-        }
+        const { activeTimer: savedActiveTimer, pokerState: savedPokerState, basketballState: savedBasketballState, customTimerState: savedCustomTimerState } = JSON.parse(savedState);
+        if (savedActiveTimer) setActiveTimer(savedActiveTimer);
+        if (savedPokerState) setPokerStateInternal(savedPokerState);
+        if (savedBasketballState) setBasketballStateInternal(savedBasketballState);
+        if (savedCustomTimerState) setCustomTimerState(savedCustomTimerState);
       } catch (error) {
-        console.error('Error loading timer state:', error);
+        console.error('Error parsing saved timer state:', error);
       }
-    };
-
-    // Initial load
-    loadState();
-
-    // If on display page, poll for updates
-    let interval: NodeJS.Timeout;
-    if (isDisplayPage) {
-      interval = setInterval(loadState, 1000); // Poll every second
     }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [isClient, isDisplayPage]);
+  }, []);
 
   // Save state to localStorage whenever it changes
   useEffect(() => {
     if (!isClient) return;
 
     try {
-      localStorage.setItem('timerState', JSON.stringify({
-        activeTimer,
-        pokerState,
-        basketballState,
-        customTimerState,
-      }));
+      if (activeTimer && (pokerState || basketballState || customTimerState)) {
+        localStorage.setItem('timerState', JSON.stringify({
+          activeTimer,
+          pokerState,
+          basketballState,
+          customTimerState,
+        }));
+      }
     } catch (error) {
       console.error('Error saving timer state:', error);
     }
   }, [activeTimer, pokerState, basketballState, customTimerState, isClient]);
 
-  // Timer countdown logic for display page
+  // Centralized timer countdown logic with accurate timing
   useEffect(() => {
-    if (!isClient || !isDisplayPage) return;
+    if (!isClient) return;
 
-    let interval: NodeJS.Timeout;
+    let lastUpdate = Date.now();
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const deltaSeconds = Math.floor((now - lastUpdate) / 1000);
+      
+      if (deltaSeconds >= 1) {
+        lastUpdate = now - (deltaSeconds % 1) * 1000; // Adjust for partial seconds
 
-    if (activeTimer === 'basketball' && basketballState?.isRunning) {
-      interval = setInterval(() => {
-        setBasketballState(prev => {
-          if (!prev) return null;
-          const newGameTime = prev.gameTime - 1;
-          const newShotClockTime = prev.shotClockTime - 1;
+        // Poker timer logic
+        if (activeTimer === 'poker' && pokerState?.isRunning) {
+          setPokerStateInternal(prev => {
+            if (!prev) return null;
+            
+            const newTimeRemaining = Math.max(0, prev.timeRemaining - deltaSeconds);
+            
+            if (newTimeRemaining <= 0) {
+              if (prev.currentLevel < prev.levels.length - 1) {
+                // Move to next level
+                const nextLevel = prev.currentLevel + 1;
+                return {
+                  ...prev,
+                  currentLevel: nextLevel,
+                  timeRemaining: prev.levels[nextLevel].duration * 60,
+                };
+              } else {
+                // End of tournament
+                return { ...prev, isRunning: false, timeRemaining: 0 };
+              }
+            }
 
-          if (newGameTime <= 0) {
-            if (prev.period < 4) {
+            return {
+              ...prev,
+              timeRemaining: newTimeRemaining,
+            };
+          });
+
+          // Broadcast timer update
+          try {
+            const bc = new BroadcastChannel('lumeo-events');
+            bc.postMessage({ type: 'TIMER_UPDATE' });
+            bc.close();
+          } catch (error) {
+            console.error('Error broadcasting timer update:', error);
+          }
+        }
+        
+        // Basketball timer logic
+        else if (activeTimer === 'basketball' && basketballState?.isRunning) {
+          const persistentStateStr = localStorage.getItem('timerPersistentState');
+          if (persistentStateStr) {
+            const persistentState = JSON.parse(persistentStateStr);
+            const elapsedSeconds = Math.floor((now - persistentState.startTime) / 1000);
+            const newGameTime = Math.max(0, persistentState.initialGameTime - elapsedSeconds);
+
+            setBasketballStateInternal(prev => {
+              if (!prev || !prev.isRunning) return prev;
+
+              if (newGameTime <= 0) {
+                if (prev.period < prev.totalPeriods) {
+                  // Start new period
+                  const newPeriodState = {
+                    ...persistentState,
+                    startTime: now,
+                    isRunning: false
+                  };
+                  localStorage.setItem('timerPersistentState', JSON.stringify(newPeriodState));
+
+                  return {
+                    ...prev,
+                    isRunning: false,
+                    period: prev.period + 1,
+                    gameTime: persistentState.periodLength * 60
+                  };
+                } else {
+                  // End of game
+                  return { ...prev, isRunning: false, gameTime: 0 };
+                }
+              }
+
               return {
                 ...prev,
-                isRunning: false,
-                period: prev.period + 1,
-                gameTime: prev.gameTime,
-                shotClockTime: 24,
+                gameTime: newGameTime
               };
-            } else {
+            });
+          }
+        }
+        
+        // Custom timer logic
+        else if (activeTimer === 'custom' && customTimerState?.isRunning) {
+          setCustomTimerState(prev => {
+            if (!prev) return null;
+            
+            if (prev.timeRemaining <= 0) {
               return { ...prev, isRunning: false };
             }
-          }
 
-          return {
-            ...prev,
-            gameTime: newGameTime,
-            shotClockTime: newShotClockTime <= 0 ? 24 : newShotClockTime,
-          };
-        });
-      }, 1000);
-    } else if (activeTimer === 'poker' && pokerState?.isRunning) {
-      interval = setInterval(() => {
-        setPokerState(prev => {
-          if (!prev) return null;
-          
-          if (prev.timeRemaining <= 0) {
-            if (prev.currentLevel < prev.levels.length - 1) {
-              return {
-                ...prev,
-                currentLevel: prev.currentLevel + 1,
-                timeRemaining: prev.levels[prev.currentLevel + 1].duration * 60,
-              };
-            } else {
-              return { ...prev, isRunning: false };
-            }
-          }
-
-          return {
-            ...prev,
-            timeRemaining: prev.timeRemaining - 1,
-            totalPlayTime: prev.totalPlayTime + 1,
-          };
-        });
-      }, 1000);
-    } else if (activeTimer === 'custom' && customTimerState?.isRunning) {
-      interval = setInterval(() => {
-        setCustomTimerState(prev => {
-          if (!prev) return null;
-
-          if (prev.timeRemaining <= 0) {
-            return { ...prev, isRunning: false };
-          }
-
-          return {
-            ...prev,
-            timeRemaining: prev.timeRemaining - 1,
-          };
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
+            return {
+              ...prev,
+              timeRemaining: Math.max(0, prev.timeRemaining - deltaSeconds),
+            };
+          });
+        }
       }
-    };
-  }, [isClient, isDisplayPage, activeTimer, basketballState?.isRunning, pokerState?.isRunning, customTimerState?.isRunning]);
+    }, 100); // Check more frequently for accuracy
+
+    return () => clearInterval(interval);
+  }, [isClient, activeTimer, pokerState?.isRunning]);
+
+  const setBasketballState = useCallback((newState: BasketballTimerState | ((prev: BasketballTimerState) => BasketballTimerState)) => {
+    setBasketballStateInternal(prev => {
+      if (!prev) return typeof newState === 'function' ? newState(prev as BasketballTimerState) : newState;
+      return typeof newState === 'function' ? newState(prev) : newState;
+    });
+  }, []);
+
+  const setPokerState = useCallback((newState: PokerTimerState | null | ((prev: PokerTimerState | null) => PokerTimerState | null)) => {
+    setPokerStateInternal(prevState => {
+      const nextState = typeof newState === 'function' ? newState(prevState) : newState;
+      return nextState;
+    });
+  }, []);
 
   if (!isClient) {
     return null;
@@ -183,6 +220,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         setPokerState,
         setBasketballState,
         setCustomTimerState,
+        updateBasketballScore,
       }}
     >
       {children}

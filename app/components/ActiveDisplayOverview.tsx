@@ -45,6 +45,7 @@ export default function ActiveDisplayOverview() {
     }
     setActiveTimer(null);
     localStorage.removeItem('timerState');
+    localStorage.removeItem('timerPersistentState');
   };
 
   if (!activeTimer) return null;
@@ -82,17 +83,15 @@ export default function ActiveDisplayOverview() {
               </div>
             </div>
             <div>
-              <h3 className="text-xl font-semibold mb-4">Next Level</h3>
-              {pokerState.currentLevel < pokerState.levels.length - 1 ? (
-                <div className="space-y-2">
-                  <p className="text-lg">
-                    Blinds: {pokerState.levels[pokerState.currentLevel + 1].smallBlind}/{pokerState.levels[pokerState.currentLevel + 1].bigBlind}
-                  </p>
-                  <p>Starts in: {formatTime(pokerState.timeRemaining)}</p>
-                </div>
-              ) : (
-                <p className="text-gray-600">Final Level</p>
-              )}
+              <h3 className="text-xl font-semibold mb-4">Status</h3>
+              <div className="space-y-2">
+                <p>{pokerState.isRunning ? 'Tournament in Progress' : 'Tournament Paused'}</p>
+                <p className="text-sm text-gray-600">
+                  {pokerState.currentLevel < pokerState.levels.length - 1 
+                    ? `${pokerState.levels.length - pokerState.currentLevel - 1} levels remaining` 
+                    : 'Final level'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -108,7 +107,7 @@ export default function ActiveDisplayOverview() {
                 <p className="text-lg">
                   Score: {basketballState.homeScore} - {basketballState.awayScore}
                 </p>
-                <p>Period {basketballState.period} | Shot Clock: {basketballState.shotClockTime}</p>
+                <p>Period {basketballState.period} of {basketballState.totalPeriods}</p>
               </div>
             </div>
             <div>
@@ -116,7 +115,9 @@ export default function ActiveDisplayOverview() {
               <div className="space-y-2">
                 <p>{basketballState.isRunning ? 'Game in Progress' : 'Game Paused'}</p>
                 <p className="text-sm text-gray-600">
-                  {basketballState.period < 4 ? `${4 - basketballState.period} periods remaining` : 'Final period'}
+                  {basketballState.period < basketballState.totalPeriods 
+                    ? `${basketballState.totalPeriods - basketballState.period} periods remaining` 
+                    : 'Final period'}
                 </p>
               </div>
             </div>

@@ -5,9 +5,11 @@ import { BasketballTimerState, MediaItem } from '@/app/types';
 import TimerSettingsStep from './components/TimerSettingsStep';
 import MediaSelectionStep from '../poker/components/MediaSelectionStep';
 import DisplaySettingsStep from '../poker/components/DisplaySettingsStep';
-import ReviewSubmitStep from '../poker/components/ReviewSubmitStep';
+import ReviewSubmitStep from './components/ReviewSubmitStep';
 import { Pencil } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTimer } from '@/app/contexts/TimerContext';
+import { useMedia } from '@/app/contexts/MediaContext';
 
 const steps = [
   { id: 1, name: 'Timer' },
@@ -18,6 +20,8 @@ const steps = [
 
 export default function NewBasketballEvent() {
   const router = useRouter();
+  const { setActiveTimer, setBasketballState } = useTimer();
+  const { storeMediaItems } = useMedia();
   const [currentStep, setCurrentStep] = useState(1);
   const [eventName, setEventName] = useState('New Basketball Event');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -49,12 +53,92 @@ export default function NewBasketballEvent() {
     }
   };
 
+  const handleLaunchLumeo = async () => {
+    try {
+      if (!timerSettings) {
+        throw new Error('Timer settings not configured');
+      }
+
+      const eventSettings: BasketballTimerState = {
+        ...timerSettings,
+        isRunning: true
+      };
+
+      console.log('Creating basketball event with settings:', eventSettings);
+
+      // Create the event in the database
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: eventName,
+          type: 'BASKETBALL',
+          settings: eventSettings,
+          mediaItems: selectedMedia
+        }),
+      });
+
+      if (!response.ok) {
+        const responseData = await response.json();
+        throw new Error(responseData.error || 'Failed to create event');
+      }
+
+      const event = await response.json();
+      console.log('Event created:', event);
+
+      // Update timer state
+      setBasketballState(eventSettings);
+      setActiveTimer('basketball');
+
+      // Store media items
+      storeMediaItems(selectedMedia);
+      localStorage.setItem('mediaState', JSON.stringify({
+        mediaItems: selectedMedia,
+        currentMediaIndex: 0,
+      }));
+
+      // Store display settings
+      localStorage.setItem('displaySettings', JSON.stringify(displaySettings));
+
+      // Store the event ID
+      localStorage.setItem('activeEventId', event.id);
+
+      // Save initial timer state to localStorage
+      localStorage.setItem('timerPersistentState', JSON.stringify({
+        startTime: Date.now(),
+        initialGameTime: eventSettings.gameTime,
+        isRunning: false,
+        period: 1,
+        totalPeriods: eventSettings.totalPeriods
+      }));
+
+      // Get the actual host URL and open display in new window
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      const displayUrl = `${protocol}//${host}/display`;
+      window.open(displayUrl, '_blank');
+
+      // Navigate to active events
+      router.push('/events/active');
+    } catch (error) {
+      console.error('Error launching display:', error);
+      if (error instanceof Error) {
+        alert(`Failed to launch display: ${error.message}`);
+      } else {
+        alert('Failed to launch display. Please try again.');
+      }
+    }
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
         return (
           <TimerSettingsStep
             onCompleteAction={(settings) => {
+              console.log('Timer settings received in parent:', settings);
               setTimerSettings(settings);
             }}
           />
@@ -82,10 +166,12 @@ export default function NewBasketballEvent() {
         return (
           <ReviewSubmitStep
             eventName={eventName}
-            blindLevels={[]}
-            roomManagement={{
-              isRoomManagementEnabled: false,
-              showWaitlistOnDisplay: false,
+            basketballSettings={{
+              quarterLength: Math.floor(timerSettings.gameTime / 60),
+              totalPeriods: timerSettings.totalPeriods,
+              homeScore: timerSettings.homeScore,
+              awayScore: timerSettings.awayScore,
+              gameTime: timerSettings.gameTime
             }}
             mediaItems={selectedMedia}
             displaySettings={displaySettings}
@@ -193,7 +279,7 @@ export default function NewBasketballEvent() {
           {currentStep === 4 && (
             <div className="mt-12">
               <button
-                onClick={() => {/* TODO: Implement launch functionality */}}
+                onClick={handleLaunchLumeo}
                 className="w-full max-w-md mx-auto block px-8 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-medium rounded-lg transition-colors"
               >
                 Launch Lumeo
