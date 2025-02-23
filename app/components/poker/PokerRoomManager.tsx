@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { usePokerRoom } from '../../contexts/PokerRoomContext';
 import { BlindLevel } from '../../types';
 import { v4 as uuidv4 } from 'uuid';
-import TableManager from './TableManager';
+import TableGrid from './TableGrid';
 import WaitingList from './WaitingList';
 import { Button } from '../ui/button';
 
@@ -22,9 +22,9 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
     removeTable,
     assignSeat,
     emptySeat,
-    addToWaitingList,
-    removeFromWaitingList,
-    reorderWaitingList,
+    addToWaitlist,
+    removeFromWaitlist,
+    reorderWaitlist,
     isRoomManagementEnabled,
     showWaitlistOnDisplay,
     setIsRoomManagementEnabled,
@@ -57,6 +57,14 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
   const removeLevel = (indexToRemove: number) => {
     if (pokerLevels.length > 1) {
       onUpdatePokerLevelsAction(pokerLevels.filter((_, index) => index !== indexToRemove));
+    }
+  };
+
+  // Handle adding a player to the waitlist
+  const handleAddPlayer = (name: string) => {
+    const eventId = localStorage.getItem('activeEventId');
+    if (eventId) {
+      addToWaitlist(eventId, name);
     }
   };
 
@@ -139,25 +147,33 @@ export default function PokerRoomManager({ pokerLevels, onUpdatePokerLevelsActio
                 <div>
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-4">
-                      <Button onClick={addTable} className="bg-brand-primary hover:bg-brand-primary/90">
+                      <Button 
+                        onClick={() => {
+                          const eventId = localStorage.getItem('activeEventId');
+                          if (eventId) {
+                            addTable(eventId);
+                          }
+                        }} 
+                        className="bg-brand-primary hover:bg-brand-primary/90"
+                      >
                         +Add Tables
                       </Button>
                     </div>
                   </div>
 
-                  <TableManager
+                  <TableGrid
                     tables={tables}
-                    onAssignSeatAction={assignSeat}
-                    onEmptySeatAction={emptySeat}
-                    onRemoveTableAction={removeTable}
+                    onAssignSeat={assignSeat}
+                    onEmptySeat={emptySeat}
+                    onRemoveTable={removeTable}
                   />
                 </div>
 
                 <WaitingList
                   players={waitingList}
-                  onAddPlayerAction={addToWaitingList}
-                  onRemovePlayerAction={removeFromWaitingList}
-                  onReorderPlayersAction={reorderWaitingList}
+                  onAddPlayerAction={handleAddPlayer}
+                  onRemovePlayerAction={removeFromWaitlist}
+                  onReorderPlayersAction={reorderWaitlist}
                 />
               </div>
             )}

@@ -1,14 +1,16 @@
 import { usePokerRoom } from '@/app/contexts/PokerRoomContext';
-import TableManager from '@/app/components/poker/TableManager';
+import TableGrid from '@/app/components/poker/TableGrid';
 import WaitingList from '@/app/components/poker/WaitingList';
 import { Button } from '@/app/components/ui/button';
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 interface RoomManagementStepProps {
   onCompleteAction: (roomSettings: { isRoomManagementEnabled: boolean; showWaitlistOnDisplay: boolean }) => void;
 }
 
 export default function RoomManagementStep({ onCompleteAction }: RoomManagementStepProps) {
+  const [eventId, setEventId] = useState<string | null>(null);
+  const initRef = useRef(false);
   const {
     tables,
     waitingList,
@@ -16,31 +18,60 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
     removeTable,
     assignSeat,
     emptySeat,
-    addToWaitingList,
-    removeFromWaitingList,
-    reorderWaitingList,
+    addToWaitlist,
+    removeFromWaitlist,
+    reorderWaitlist,
     isRoomManagementEnabled,
     showWaitlistOnDisplay,
     setIsRoomManagementEnabled,
     setShowWaitlistOnDisplay,
   } = usePokerRoom();
 
-  // Call onCompleteAction and update event whenever relevant state changes
-  const handleSettingsChange = async (enabled: boolean, showWaitlist: boolean) => {
+  // Get the event ID from localStorage on mount
+  useEffect(() => {
+    const storedEventId = localStorage.getItem('activeEventId');
+    if (storedEventId) {
+      console.log('RoomManagementStep - Found stored event ID:', storedEventId);
+      setEventId(storedEventId);
+    } else {
+      console.error('RoomManagementStep - No active event ID found in localStorage');
+    }
+  }, []); // Only run once on mount
+
+  // Initialize settings once when eventId is available
+  useEffect(() => {
+    if (eventId && !initRef.current) {
+      console.log('RoomManagementStep - Initializing room management settings');
+      setIsRoomManagementEnabled(false);
+      setShowWaitlistOnDisplay(false);
+      initRef.current = true;
+    }
+  }, [eventId, setIsRoomManagementEnabled, setShowWaitlistOnDisplay]);
+
+  // Memoize handleSettingsChange with useCallback
+  const handleSettingsChange = useCallback(async (enabled: boolean, showWaitlist: boolean) => {
+    if (!eventId) {
+      console.error('RoomManagementStep - Cannot update settings: No event ID available');
+      return;
+    }
+
+    console.log('RoomManagementStep - Updating settings:', {
+      eventId,
+      enabled,
+      showWaitlist
+    });
+
     // Update local state through the context
+    setIsRoomManagementEnabled(enabled);
+    setShowWaitlistOnDisplay(showWaitlist);
+    
+    // Only call onCompleteAction for user-initiated changes
     onCompleteAction({
       isRoomManagementEnabled: enabled,
       showWaitlistOnDisplay: showWaitlist
     });
 
     try {
-      // Get the event ID from localStorage
-      const eventId = localStorage.getItem('activeEventId');
-      if (!eventId) {
-        console.error('No active event ID found');
-        return;
-      }
-
       // Update event settings in the database
       const response = await fetch(`/api/events/${eventId}`, {
         method: 'PATCH',
@@ -49,7 +80,11 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
         },
         credentials: 'include',
         body: JSON.stringify({
-          roomManagement: {
+          settings: {
+            isRunning: false,
+            currentLevel: 0,
+            timeRemaining: 0,
+            levels: [],
             isRoomManagementEnabled: enabled,
             showWaitlistOnDisplay: showWaitlist
           }
@@ -57,19 +92,36 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update event settings');
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
+        throw new Error(errorData.error || 'Failed to update event settings');
       }
 
-      console.log('Room management settings updated successfully');
+      console.log('RoomManagementStep - Settings updated successfully');
     } catch (error) {
-      console.error('Error updating room management settings:', error);
+      console.error('RoomManagementStep - Error updating settings:', error);
     }
-  };
+  }, [eventId, onCompleteAction, setIsRoomManagementEnabled, setShowWaitlistOnDisplay]);
 
-  // Initialize room management settings
-  useEffect(() => {
-    handleSettingsChange(false, false);
-  }, []);
+  const handleAddPlayer = (name: string) => {
+    if (!eventId) {
+      console.error('RoomManagementStep - Cannot add player: No event ID available');
+      return;
+    }
+    
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      console.error('RoomManagementStep - Cannot add player: Name is required');
+      return;
+    }
+
+    console.log('RoomManagementStep - Adding player:', {
+      eventId,
+      name: trimmedName
+    });
+
+    addToWaitlist(eventId, trimmedName);
+  };
 
   return (
     <div className="animate-fade-in">
@@ -90,10 +142,7 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
               <input
                 type="checkbox"
                 checked={isRoomManagementEnabled}
-                onChange={(e) => {
-                  setIsRoomManagementEnabled(e.target.checked);
-                  handleSettingsChange(e.target.checked, showWaitlistOnDisplay);
-                }}
+                onChange={(e) => handleSettingsChange(e.target.checked, showWaitlistOnDisplay)}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-dark-surface/80 border border-dark-border peer-focus:outline-none rounded-full peer dark:bg-dark-surface-lighter peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-dark-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary hover:bg-dark-surface-lighter transition-colors"></div>
@@ -110,10 +159,7 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
                 <input
                   type="checkbox"
                   checked={showWaitlistOnDisplay}
-                  onChange={(e) => {
-                    setShowWaitlistOnDisplay(e.target.checked);
-                    handleSettingsChange(isRoomManagementEnabled, e.target.checked);
-                  }}
+                  onChange={(e) => handleSettingsChange(isRoomManagementEnabled, e.target.checked)}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-dark-surface/80 border border-dark-border peer-focus:outline-none rounded-full peer dark:bg-dark-surface-lighter peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-dark-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-primary hover:bg-dark-surface-lighter transition-colors"></div>
@@ -123,30 +169,33 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
         </div>
       </div>
 
-      {isRoomManagementEnabled && (
+      {isRoomManagementEnabled && eventId && (
         <div className="grid grid-cols-[1fr_300px] gap-8">
           <div>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-4">
-                <Button onClick={addTable} className="bg-brand-primary hover:bg-brand-primary/90">
+                <Button 
+                  onClick={() => addTable(eventId)} 
+                  className="bg-brand-primary hover:bg-brand-primary/90"
+                >
                   +Add Tables
                 </Button>
               </div>
             </div>
 
-            <TableManager
+            <TableGrid
               tables={tables}
-              onAssignSeatAction={assignSeat}
-              onEmptySeatAction={emptySeat}
-              onRemoveTableAction={removeTable}
+              onAssignSeat={assignSeat}
+              onEmptySeat={emptySeat}
+              onRemoveTable={removeTable}
             />
           </div>
 
           <WaitingList
             players={waitingList}
-            onAddPlayerAction={addToWaitingList}
-            onRemovePlayerAction={removeFromWaitingList}
-            onReorderPlayersAction={reorderWaitingList}
+            onAddPlayerAction={handleAddPlayer}
+            onRemovePlayerAction={removeFromWaitlist}
+            onReorderPlayersAction={reorderWaitlist}
           />
         </div>
       )}

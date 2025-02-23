@@ -31,8 +31,9 @@ export interface CustomTimerState {
 
 export interface MediaItem {
   id: string;
-  type: 'image' | 'video';
-  path: string;
+  type: 'IMAGE' | 'VIDEO';
+  url: string;
+  displayOrder: number;
   duration?: number; // for videos
 }
 

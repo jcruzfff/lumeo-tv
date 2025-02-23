@@ -24,11 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../components/ui/alert-dialog"
-
-interface Player {
-  id: string
-  name: string
-}
+import { Player } from '@/app/types/events'
 
 interface WaitingListProps {
   players: Player[]
@@ -51,13 +47,15 @@ function SortableItem({ player, index, onRemove }: SortableItemProps) {
     transition,
   }
 
+  const displayName = player.name || 'Unnamed Player';
+
   return (
     <li ref={setNodeRef} style={style} className="bg-dark-surface-lighter/60 backdrop-blur-md border border-dark-border/20 p-3 rounded-lg flex items-center gap-2 hover:border-brand-primary/50 hover:bg-dark-surface-light transition-all shadow-sm">
       <button className="touch-none p-1 text-text-tertiary hover:text-text-secondary" {...attributes} {...listeners}>
         <GripVertical className="h-4 w-4" />
       </button>
       <span className="flex-1 text-text-primary font-medium">
-        {index + 1}. {player.name}
+        {index + 1}. {displayName}
       </span>
       <Button 
         variant="ghost" 
@@ -78,7 +76,18 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
   const [showClearListDialog, setShowClearListDialog] = useState(false)
 
   useEffect(() => {
-    console.log('WaitingList Component - Current players:', players);
+    console.log('WaitingList Component - Current players:', players.map(p => ({
+      id: p.id,
+      name: p.name,
+      position: p.position
+    })));
+  }, [players]);
+
+  useEffect(() => {
+    const invalidPlayers = players.filter(p => !p.name);
+    if (invalidPlayers.length > 0) {
+      console.error('WaitingList Component - Found players with missing names:', invalidPlayers);
+    }
   }, [players]);
 
   const sensors = useSensors(
@@ -90,10 +99,14 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (newPlayer.trim()) {
-      console.log('WaitingList Component - Adding new player:', newPlayer.trim());
-      onAddPlayerAction(newPlayer.trim())
-      setNewPlayer("")
+    const trimmedName = newPlayer.trim();
+    if (trimmedName) {
+      console.log('WaitingList Component - Adding new player:', {
+        name: trimmedName,
+        currentPlayersCount: players.length
+      });
+      onAddPlayerAction(trimmedName);
+      setNewPlayer("");
     }
   }
 
@@ -116,12 +129,33 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
     const { active, over } = event
 
     if (over && active.id !== over.id) {
-      console.log('WaitingList Component - Reordering players:', { active, over });
+      console.log('WaitingList Component - Starting reorder:', {
+        activeId: active.id,
+        overId: over.id,
+        currentPlayers: players
+      });
+
       const oldIndex = players.findIndex(p => p.id === active.id)
       const newIndex = players.findIndex(p => p.id === over.id)
       const newOrder = arrayMove(players, oldIndex, newIndex)
-      console.log('WaitingList Component - New player order:', newOrder);
+
+      console.log('WaitingList Component - Calculated new order:', {
+        oldIndex,
+        newIndex,
+        newOrder
+      });
+
+      // Update the display immediately
       onReorderPlayersAction(newOrder)
+
+      // Log the final state
+      console.log('WaitingList Component - Reorder complete:', {
+        finalOrder: newOrder.map((p, idx) => ({
+          position: idx + 1,
+          name: p.name,
+          id: p.id
+        }))
+      });
     }
   }
 

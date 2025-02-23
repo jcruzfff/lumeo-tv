@@ -1,8 +1,14 @@
 "use client"
 
-import { useState } from "react"
-
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../components/ui/tooltip"
+import { Seat } from '@/app/types/events'
+import { UserPlus } from 'lucide-react'
+import { useState } from 'react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/app/components/ui/tooltip"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,22 +18,19 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "../../components/ui/alert-dialog"
-import { UserPlus } from "lucide-react"
-
-interface Player {
-  id: string
-  name: string
-}
+} from "@/app/components/ui/alert-dialog"
 
 interface PokerTableProps {
-  seats: (Player | null)[]
+  seats: Seat[]
   onAssignSeatAction: (index: number) => void
   onEmptySeatAction: (index: number) => void
 }
 
-export default function PokerTable({ seats, onAssignSeatAction, onEmptySeatAction }: PokerTableProps) {
-  const [hoveredSeat, setHoveredSeat] = useState<number | null>(null)
+export default function PokerTable({
+  seats,
+  onAssignSeatAction,
+  onEmptySeatAction
+}: PokerTableProps) {
   const [selectedSeat, setSelectedSeat] = useState<number | null>(null)
   const [showRemoveDialog, setShowRemoveDialog] = useState(false)
 
@@ -75,44 +78,42 @@ export default function PokerTable({ seats, onAssignSeatAction, onEmptySeatActio
           </div>
 
           {/* Player Seats */}
-          {seats.map((player, index) => {
-            // Calculate position starting from right of dealer (add 1 to index for display)
-            const position = getPosition(index + 1);
+          {seats.map((seat, index) => {
+            const isOccupied = Boolean(seat.playerId && seat.playerName)
+            // Calculate position starting from right of dealer
+            const position = getPosition(index + 1)
+            
             return (
-              <Tooltip key={index}>
+              <Tooltip key={seat.id}>
                 <TooltipTrigger asChild>
-                  <div
+                  <button
                     className={`absolute w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 shadow-lg backdrop-blur-sm z-20 ${
-                      player
-                        ? hoveredSeat === index
-                          ? "bg-status-error/90 text-white border border-white/10"
-                          : "bg-brand-primary/90 text-white border border-white/10"
+                      isOccupied
+                        ? "bg-brand-primary/90 text-white border border-white/10 hover:bg-status-error/90"
                         : "bg-dark-surface/90 border border-dark-border/20 hover:bg-dark-surface-lighter/90"
                     }`}
                     style={{
                       ...position,
                       transform: "translate(-50%, -50%)",
                     }}
-                    onMouseEnter={() => player && setHoveredSeat(index)}
-                    onMouseLeave={() => setHoveredSeat(null)}
-                    onClick={() => player ? handleRemoveSeat(index) : onAssignSeatAction(index)}
+                    onClick={() => isOccupied ? handleRemoveSeat(index) : onAssignSeatAction(index)}
                   >
-                    {player ? (
+                    {isOccupied ? (
                       index + 1
                     ) : (
                       <UserPlus className="h-3 w-3 text-text-secondary" />
                     )}
-                  </div>
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={5} className="bg-dark-card border border-dark-border/20 text-text-primary z-[9999] relative">
-                  {player ? (
-                    <p>Seat {index + 1}: {player.name} (Click to remove)</p>
+                  {isOccupied ? (
+                    <p>Remove {seat.playerName}</p>
                   ) : (
-                    <p>Click to assign next player to seat {index + 1}</p>
+                    <p>Assign Seat {index + 1}</p>
                   )}
                 </TooltipContent>
               </Tooltip>
-            );
+            )
           })}
         </div>
       </div>
@@ -122,7 +123,7 @@ export default function PokerTable({ seats, onAssignSeatAction, onEmptySeatActio
           <AlertDialogHeader>
             <AlertDialogTitle className="text-text-primary">Remove Player</AlertDialogTitle>
             <AlertDialogDescription className="text-text-secondary">
-              Are you sure you want to remove {selectedSeat !== null && seats[selectedSeat]?.name} from seat {selectedSeat !== null ? selectedSeat + 1 : ''}?
+              Are you sure you want to remove {selectedSeat !== null && seats[selectedSeat]?.playerName} from seat {selectedSeat !== null ? selectedSeat + 1 : ''}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

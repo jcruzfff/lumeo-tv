@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { Event, Player, Table } from '@/app/types/events';
+import { Event, PokerSettings, BasketballSettings, Player } from '@/app/types/events';
 import { useEventManagement } from '@/app/hooks/useEventManagement';
 import { useSession } from 'next-auth/react';
+import WaitingList from '@/app/components/poker/WaitingList';
 
 export default function EventManagement() {
   const { eventId } = useParams();
@@ -14,6 +15,7 @@ export default function EventManagement() {
   const [initialEvent, setInitialEvent] = useState<Event | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState<string | null>(null);
+  const [event, setEvent] = useState<Event | null>(null);
 
   console.log('[EventManagement] Initializing with:', {
     eventId,
@@ -75,7 +77,6 @@ export default function EventManagement() {
   }, [eventId, router, status]);
 
   const {
-    event,
     isLoading,
     error,
     toggleTimer,
@@ -84,10 +85,8 @@ export default function EventManagement() {
     reorderWaitingList,
     addTable,
     removeTable,
-    updateTableSeats,
     updateScore,
-    endEvent,
-    refreshEvent
+    endEvent
   } = useEventManagement({
     eventId: eventId as string,
     initialEvent: initialEvent
@@ -97,6 +96,33 @@ export default function EventManagement() {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Add type guard for poker settings
+  const isPokerSettings = (settings: Event['settings']): settings is PokerSettings => {
+    return settings && 
+      typeof settings.isRunning === 'boolean' &&
+      'currentLevel' in settings &&
+      'levels' in settings;
+  };
+
+  // Add type guard for basketball settings
+  const isBasketballSettings = (settings: Event['settings']): settings is BasketballSettings => {
+    return settings && 
+      typeof settings.isRunning === 'boolean' &&
+      'gameTime' in settings &&
+      'period' in settings;
+  };
+
+  // Update the waitlist reordering function with proper types
+  const handleReorderPlayers = (newOrder: Player[]) => {
+    setEvent((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        waitingList: newOrder
+      };
+    });
   };
 
   if (isInitialLoading || isLoading) {
@@ -183,7 +209,7 @@ export default function EventManagement() {
             </div>
           </div>
 
-          {event.type === 'POKER' && (
+          {event.type === 'POKER' && isPokerSettings(event.settings) && (
             <div className="grid grid-cols-[400px_1fr] gap-8">
               {/* Left Column - Game Details & Waitlist */}
               <div className="space-y-6">
@@ -197,10 +223,10 @@ export default function EventManagement() {
                   <div className="space-y-6">
                     <div>
                       <div className="text-[64px] font-bold text-white leading-none">
-                        {formatTime(event.settings.timeRemaining ?? 0)}
+                        {formatTime(event.settings.timeRemaining)}
                       </div>
                       <div className="text-text-secondary mt-2">
-                        Level {(event.settings.currentLevel ?? 0) + 1} of {event.settings.levels?.length ?? 0}
+                        Level {event.settings.currentLevel + 1} of {event.settings.levels.length}
                       </div>
                     </div>
 
@@ -230,45 +256,39 @@ export default function EventManagement() {
                   </div>
                 </div>
 
-                {/* Waiting List */}
-                <div className="bg-[#1F1F21] backdrop-blur-md border border-[#2C2C2E] p-6 rounded-xl">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-semibold text-text-primary">Waiting List</h2>
-                    <p className="text-text-secondary mt-2">Players waiting to join a table</p>
-                  </div>
+                {/* Replace the old waitlist with the WaitingList component */}
+                <WaitingList
+                  players={event.waitingList || []}
+                  onAddPlayerAction={(name) => addPlayer(name)}
+                  onRemovePlayerAction={(index) => {
+                    const player = event.waitingList?.[index];
+                    if (player) {
+                      removePlayer(player.id);
+                    }
+                  }}
+                  onReorderPlayersAction={(newOrder) => {
+                    // Update local state immediately for smooth UI
+                    handleReorderPlayers(newOrder);
 
-                  <div className="space-y-4">
-                    {event.waitingList?.map((player, index) => (
-                      <div
-                        key={player.id}
-                        className="flex items-center justify-between bg-[#161618] p-4 rounded-lg"
-                      >
-                        <div>
-                          <div className="text-text-primary font-medium">{player.name}</div>
-                          <div className="text-sm text-text-secondary">Position: {index + 1}</div>
-                        </div>
-                        <button
-                          onClick={() => removePlayer(player.id)}
-                          className="text-status-error hover:text-status-error/70 transition-colors"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-
-                    <button
-                      onClick={() => {
-                        const name = window.prompt('Enter player name:');
-                        if (name) {
-                          addPlayer(name);
+                    // Find the moved player and their new position
+                    const movedPlayer = newOrder.find((player, index) => {
+                      const oldIndex = event.waitingList?.findIndex(p => p.id === player.id) ?? -1;
+                      return oldIndex !== index;
+                    });
+                    
+                    if (movedPlayer) {
+                      const newPosition = newOrder.findIndex(p => p.id === movedPlayer.id) + 1;
+                      // Make API call in background
+                      reorderWaitingList(movedPlayer.id, newPosition).catch(error => {
+                        console.error('Failed to reorder waitlist:', error);
+                        // Revert to original order on error
+                        if (event?.waitingList) {
+                          handleReorderPlayers(event.waitingList);
                         }
-                      }}
-                      className="w-full py-3 bg-dark-surface hover:bg-dark-surface-lighter text-text-primary font-medium rounded-lg transition-colors"
-                    >
-                      Add Player
-                    </button>
-                  </div>
-                </div>
+                      });
+                    }
+                  }}
+                />
               </div>
 
               {/* Right Column - Tables */}
@@ -330,7 +350,7 @@ export default function EventManagement() {
             </div>
           )}
 
-          {event.type === 'BASKETBALL' && (
+          {event.type === 'BASKETBALL' && isBasketballSettings(event.settings) && (
             <div className="grid grid-cols-[400px_1fr] gap-8">
               {/* Left Column - Game Details */}
               <div className="space-y-6">
@@ -344,10 +364,10 @@ export default function EventManagement() {
                   <div className="space-y-6">
                     <div>
                       <div className="text-[64px] font-bold text-white leading-none">
-                        {formatTime(event.settings.gameTime ?? 0)}
+                        {formatTime(event.settings.gameTime)}
                       </div>
                       <div className="text-text-secondary mt-2">
-                        Period {event.settings.period ?? 1} of {event.settings.totalPeriods ?? 4}
+                        Period {event.settings.period} of {event.settings.totalPeriods}
                       </div>
                     </div>
 
@@ -355,13 +375,13 @@ export default function EventManagement() {
                       <div>
                         <div className="text-sm text-text-secondary mb-1">Home Score</div>
                         <div className="text-3xl font-bold text-text-primary">
-                          {event.settings.homeScore ?? 0}
+                          {event.settings.homeScore}
                         </div>
                       </div>
                       <div>
                         <div className="text-sm text-text-secondary mb-1">Away Score</div>
                         <div className="text-3xl font-bold text-text-primary">
-                          {event.settings.awayScore ?? 0}
+                          {event.settings.awayScore}
                         </div>
                       </div>
                     </div>

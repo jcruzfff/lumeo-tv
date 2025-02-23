@@ -16,10 +16,11 @@ export default function MediaSelectionStep({ onCompleteAction }: MediaSelectionS
   // Handle media upload
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
-    const newMediaItems: MediaItem[] = files.map(file => ({
+    const newMediaItems: MediaItem[] = files.map((file, index) => ({
       id: uuidv4(),
-      type: file.type.startsWith('video/') ? 'video' : 'image',
-      path: URL.createObjectURL(file),
+      type: file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE',
+      url: URL.createObjectURL(file),
+      displayOrder: mediaItems.length + index + 1,
       duration: file.type.startsWith('video/') ? undefined : 15,
     }));
     const updatedItems = [...mediaItems, ...newMediaItems];
@@ -84,14 +85,14 @@ export default function MediaSelectionStep({ onCompleteAction }: MediaSelectionS
               <GripVertical className="h-5 w-5" />
             </div>
             <div className="relative w-16 h-16 mr-4 rounded-lg overflow-hidden bg-dark-surface">
-              {item.type === 'video' ? (
+              {item.type === 'VIDEO' ? (
                 <video
-                  src={item.path}
+                  src={item.url}
                   className="w-full h-full object-cover"
                 />
               ) : (
                 <Image
-                  src={item.path}
+                  src={item.url}
                   alt=""
                   fill
                   className="object-cover"
@@ -104,7 +105,7 @@ export default function MediaSelectionStep({ onCompleteAction }: MediaSelectionS
                 {item.type.charAt(0).toUpperCase() + item.type.slice(1)} {index + 1}
               </div>
               <div className="text-text-secondary text-sm">
-                Duration: {item.type === 'video' ? 'Full length' : '15 seconds'}
+                Duration: {item.type === 'VIDEO' ? 'Full length' : '15 seconds'}
               </div>
             </div>
             <button

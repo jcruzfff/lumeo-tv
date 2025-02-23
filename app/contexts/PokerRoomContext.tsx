@@ -1,14 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-
-export interface Player {
-  id: string;
-  name: string;
-}
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { Table, Player } from '@/app/types/events';
 
 export interface PokerRoomState {
-  tables: { id: number; seats: (Player | null)[] }[];
+  tables: Table[];
   waitingList: Player[];
   showRoomInfo: boolean;
   isRoomManagementEnabled: boolean;
@@ -16,23 +12,22 @@ export interface PokerRoomState {
 }
 
 interface PokerRoomContextType extends PokerRoomState {
-  addTable: () => void;
-  removeTable: (tableId: number) => void;
-  assignSeat: (tableId: number, seatIndex: number) => void;
-  emptySeat: (tableId: number, seatIndex: number) => void;
-  addToWaitingList: (name: string) => void;
-  removeFromWaitingList: (index: number) => void;
-  reorderWaitingList: (newOrder: Player[]) => void;
+  setState: (state: PokerRoomState) => void;
+  addTable: (eventId: string) => void;
+  removeTable: (tableId: string) => void;
+  assignSeat: (tableId: string, seatIndex: number) => void;
+  emptySeat: (tableId: string, seatIndex: number) => void;
+  addToWaitlist: (eventId: string, name: string) => void;
+  removeFromWaitlist: (index: number) => void;
+  reorderWaitlist: (newOrder: Player[]) => void;
   toggleRoomInfo: () => void;
   setIsRoomManagementEnabled: (enabled: boolean) => void;
   setShowWaitlistOnDisplay: (show: boolean) => void;
-  setState: (state: PokerRoomState) => void;
 }
 
 const PokerRoomContext = createContext<PokerRoomContextType | undefined>(undefined);
 
 export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
-  // Try to load initial state from localStorage
   const getInitialState = (): PokerRoomState => {
     if (typeof window !== 'undefined') {
       try {
@@ -60,12 +55,10 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<PokerRoomState>(getInitialState);
   const [isClient, setIsClient] = useState(false);
 
-  // Set isClient to true once component mounts
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Save state to localStorage whenever it changes
   useEffect(() => {
     if (!isClient) return;
 
@@ -77,184 +70,147 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state, isClient]);
 
-  const addTable = () => {
-    setState(prev => ({
+  const addTable = useCallback((eventId: string) => {
+    setState((prev) => {
+      const newTable: Table = {
+        id: crypto.randomUUID(),
+        eventId,
+        number: prev.tables.length + 1,
+        seats: Array(9).fill(null).map((_, i) => ({
+          id: crypto.randomUUID(),
+          tableId: '',  // Will be set after table creation
+          position: i,
+          playerId: null,
+          playerName: null,
+          createdAt: new Date().toISOString()
+        })),
+        createdAt: new Date().toISOString()
+      };
+      
+      // Update the tableId for each seat
+      newTable.seats = newTable.seats.map(seat => ({
+        ...seat,
+        tableId: newTable.id
+      }));
+
+      return {
+        ...prev,
+        tables: [...prev.tables, newTable]
+      };
+    });
+  }, []);
+
+  const removeTable = useCallback((tableId: string) => {
+    setState((prev) => ({
       ...prev,
-      tables: [...prev.tables, { id: Date.now(), seats: Array(9).fill(null) }],
+      tables: prev.tables.filter((table) => table.id !== tableId)
     }));
-  };
+  }, []);
 
-  const removeTable = (tableId: number) => {
-    setState(prev => ({
-      ...prev,
-      tables: prev.tables.filter(table => table.id !== tableId),
-    }));
-  };
+  const assignSeat = useCallback((tableId: string, seatIndex: number) => {
+    setState((prev) => {
+      if (prev.waitingList.length === 0) return prev;
 
-  const assignSeat = (tableId: number, seatIndex: number) => {
-    if (state.waitingList.length === 0) return;
-
-    setState(prev => {
-      const nextPlayer = prev.waitingList[0];
-      const newTables = prev.tables.map(table => {
+      const [nextPlayer, ...remainingPlayers] = prev.waitingList;
+      const updatedTables = prev.tables.map((table) => {
         if (table.id === tableId) {
-          const newSeats = [...table.seats];
-          newSeats[seatIndex] = nextPlayer;
-          return { ...table, seats: newSeats };
+          const updatedSeats = [...table.seats];
+          updatedSeats[seatIndex] = {
+            ...updatedSeats[seatIndex],
+            playerId: nextPlayer.id,
+            playerName: nextPlayer.name
+          };
+          return { ...table, seats: updatedSeats };
         }
         return table;
       });
 
       return {
         ...prev,
-        tables: newTables,
-        waitingList: prev.waitingList.slice(1),
+        tables: updatedTables,
+        waitingList: remainingPlayers
       };
     });
-  };
+  }, []);
 
-  const emptySeat = (tableId: number, seatIndex: number) => {
-    setState(prev => ({
-      ...prev,
-      tables: prev.tables.map(table => {
+  const emptySeat = useCallback((tableId: string, seatIndex: number) => {
+    setState((prev) => {
+      const updatedTables = prev.tables.map((table) => {
         if (table.id === tableId) {
-          const newSeats = [...table.seats];
-          newSeats[seatIndex] = null;
-          return { ...table, seats: newSeats };
+          const updatedSeats = [...table.seats];
+          updatedSeats[seatIndex] = {
+            ...updatedSeats[seatIndex],
+            playerId: null,
+            playerName: null
+          };
+          return { ...table, seats: updatedSeats };
         }
         return table;
-      }),
+      });
+
+      return {
+        ...prev,
+        tables: updatedTables
+      };
+    });
+  }, []);
+
+  const addToWaitlist = useCallback((eventId: string, name: string) => {
+    setState((prev) => {
+      // Validate required fields according to PROMPT.md
+      if (!eventId || !name.trim()) {
+        console.error('Invalid player data: eventId and name are required');
+        return prev;
+      }
+
+      const newPlayer: Player = {
+        id: crypto.randomUUID(),
+        eventId: eventId,
+        name: name.trim(),
+        position: prev.waitingList.length,
+        addedAt: new Date().toISOString()
+      };
+
+      // Log the exact player being added
+      console.log('PokerRoomContext - Adding new player to waitlist:', {
+        id: newPlayer.id,
+        name: newPlayer.name,
+        position: newPlayer.position,
+        currentWaitlistLength: prev.waitingList.length
+      });
+
+      const updatedWaitlist = [...prev.waitingList, newPlayer];
+
+      // Verify the updated waitlist
+      console.log('PokerRoomContext - Updated waitlist:', updatedWaitlist.map(p => ({
+        id: p.id,
+        name: p.name,
+        position: p.position
+      })));
+
+      return {
+        ...prev,
+        waitingList: updatedWaitlist
+      };
+    });
+  }, []);
+
+  const removeFromWaitlist = useCallback((index: number) => {
+    setState((prev) => ({
+      ...prev,
+      waitingList: prev.waitingList.filter((_, i) => i !== index)
     }));
-  };
+  }, []);
 
-  const addToWaitingList = async (name: string) => {
-    console.log('PokerRoomContext - Adding player to waitlist:', name);
-    
-    try {
-      // Get the event ID from localStorage
-      const eventId = localStorage.getItem('activeEventId');
-      if (!eventId) {
-        console.error('PokerRoomContext - No active event ID found');
-        return;
-      }
-
-      // Make API call to add player to waitlist
-      const response = await fetch(`/api/events/${eventId}/waitinglist`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({ name })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add player to waitlist');
-      }
-
-      const newPlayer = await response.json();
-      console.log('PokerRoomContext - API response:', newPlayer);
-
-      // Update local state
-      setState(prev => {
-        const newState = {
-          ...prev,
-          waitingList: [...prev.waitingList, newPlayer],
-        };
-        console.log('PokerRoomContext - New state after adding player:', newState);
-        return newState;
-      });
-    } catch (error) {
-      console.error('PokerRoomContext - Error adding player:', error);
-    }
-  };
-
-  const removeFromWaitingList = async (index: number) => {
-    console.log('PokerRoomContext - Removing player at index:', index);
-    
-    try {
-      // Get the event ID from localStorage
-      const eventId = localStorage.getItem('activeEventId');
-      if (!eventId) {
-        console.error('PokerRoomContext - No active event ID found');
-        return;
-      }
-
-      const player = state.waitingList[index];
-      if (!player) {
-        console.error('PokerRoomContext - Player not found at index:', index);
-        return;
-      }
-
-      // Make API call to remove player from waitlist
-      const response = await fetch(`/api/events/${eventId}/waitinglist`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({ playerId: player.id })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to remove player from waitlist');
-      }
-
-      // Update local state
-      setState(prev => {
-        const newState = {
-          ...prev,
-          waitingList: prev.waitingList.filter((_, i) => i !== index),
-        };
-        console.log('PokerRoomContext - New state after removing player:', newState);
-        return newState;
-      });
-    } catch (error) {
-      console.error('PokerRoomContext - Error removing player:', error);
-    }
-  };
-
-  const reorderWaitingList = async (newOrder: Player[]) => {
-    console.log('PokerRoomContext - Reordering waitlist:', newOrder);
-    
-    try {
-      // Get the event ID from localStorage
-      const eventId = localStorage.getItem('activeEventId');
-      if (!eventId) {
-        console.error('PokerRoomContext - No active event ID found');
-        return;
-      }
-
-      // Update each player's position
-      for (let i = 0; i < newOrder.length; i++) {
-        const player = newOrder[i];
-        const response = await fetch(`/api/events/${eventId}/waitinglist`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include',
-          body: JSON.stringify({ playerId: player.id, newPosition: i + 1 })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update position for player ${player.name}`);
-        }
-      }
-
-      // Update local state
-      setState(prev => {
-        const newState = {
-          ...prev,
-          waitingList: newOrder,
-        };
-        console.log('PokerRoomContext - New state after reordering:', newState);
-        return newState;
-      });
-    } catch (error) {
-      console.error('PokerRoomContext - Error reordering waitlist:', error);
-    }
-  };
+  const reorderWaitlist = useCallback((newOrder: Player[]) => {
+    setState((prev) => ({
+      ...prev,
+      waitingList: newOrder.map((player, index) => ({
+        ...player,
+        position: index
+      }))
+    }));
+  }, []);
 
   const toggleRoomInfo = () => {
     setState(prev => ({
@@ -296,17 +252,17 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
     <PokerRoomContext.Provider
       value={{
         ...state,
+        setState,
         addTable,
         removeTable,
         assignSeat,
         emptySeat,
-        addToWaitingList,
-        removeFromWaitingList,
-        reorderWaitingList,
+        addToWaitlist,
+        removeFromWaitlist,
+        reorderWaitlist,
         toggleRoomInfo,
         setIsRoomManagementEnabled,
         setShowWaitlistOnDisplay,
-        setState,
       }}
     >
       {children}

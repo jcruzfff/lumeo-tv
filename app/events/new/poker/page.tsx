@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Pencil } from 'lucide-react';
-import BlindLevelsStep from './components/BlindLevelsStep';
-import RoomManagementStep from './components/RoomManagementStep';
-import MediaSelectionStep from './components/MediaSelectionStep';
-import DisplaySettingsStep from './components/DisplaySettingsStep';
-import ReviewSubmitStep from './components/ReviewSubmitStep';
+import BlindLevelsStep from '@/app/events/new/poker/components/BlindLevelsStep';
+import RoomManagementStep from '@/app/events/new/poker/components/RoomManagementStep';
+import MediaSelectionStep from '@/app/events/new/poker/components/MediaSelectionStep';
+import DisplaySettingsStep from '@/app/events/new/poker/components/DisplaySettingsStep';
+import ReviewSubmitStep from '@/app/events/new/poker/components/ReviewSubmitStep';
 import { BlindLevel, MediaItem } from '@/app/types';
 import { useTimer } from '@/app/contexts/TimerContext';
 import { useMedia } from '@/app/contexts/MediaContext';
@@ -26,6 +26,7 @@ export default function NewPokerEvent() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [eventId, setEventId] = useState<string | null>(null);
+  const hasCreatedEvent = useRef(false);
   const [eventData, setEventData] = useState<{
     blindLevels?: BlindLevel[];
     roomManagement?: {
@@ -53,12 +54,25 @@ export default function NewPokerEvent() {
 
   const { setActiveTimer, setPokerState } = useTimer();
   const { storeMediaItems } = useMedia();
-  const { setState } = usePokerRoom();
+  const { tables } = usePokerRoom();
   const router = useRouter();
 
   // Create event when component mounts
   useEffect(() => {
     const createEvent = async () => {
+      console.log('[Init] Checking event creation status:', {
+        hasCreated: hasCreatedEvent.current,
+        eventId
+      });
+
+      if (hasCreatedEvent.current || eventId) {
+        console.log('[Init] Event already created, skipping');
+        return;
+      }
+
+      hasCreatedEvent.current = true;
+      console.log('[Init] Setting hasCreatedEvent to true');
+
       try {
         console.log('[Init] Starting poker event creation');
         const response = await fetch('/api/events', {
@@ -75,22 +89,6 @@ export default function NewPokerEvent() {
               currentLevel: 0,
               timeRemaining: 0,
               levels: [],
-              breakDuration: 0,
-              totalPlayTime: 0
-            },
-            mediaItems: [],
-            displaySettings: {
-              aspectRatio: '16:9',
-              timerPosition: 'top-right',
-              mediaInterval: 15,
-              showTimer: true,
-              theme: 'dark',
-              customColors: {
-                timerText: '#FFFFFF',
-                timerBackground: '#000000',
-              },
-            },
-            roomManagement: {
               isRoomManagementEnabled: false,
               showWaitlistOnDisplay: false
             }
@@ -98,18 +96,13 @@ export default function NewPokerEvent() {
         });
 
         if (!response.ok) {
+          hasCreatedEvent.current = false;
           throw new Error('Failed to create event');
         }
 
         const createdEvent = await response.json();
-        console.log('[Init] Event created successfully:', {
-          id: createdEvent.id,
-          name: createdEvent.name,
-          type: createdEvent.type,
-          status: createdEvent.status
-        });
+        console.log('[Init] Event created successfully:', createdEvent);
 
-        // Store event ID in state and localStorage
         setEventId(createdEvent.id);
         localStorage.setItem('activeEventId', createdEvent.id);
         
@@ -120,38 +113,64 @@ export default function NewPokerEvent() {
 
       } catch (error) {
         console.error('[Init] Error:', error);
+        hasCreatedEvent.current = false;
         alert(error instanceof Error ? error.message : 'Failed to create event');
       }
     };
 
     createEvent();
-  }, [eventName]);
+  }, [eventId, eventName]); // Add missing dependencies
 
   const handleBlindLevelsComplete = async (blindLevels: BlindLevel[]) => {
     if (!eventId) return;
 
     setEventData({ ...eventData, blindLevels });
 
-    // Update event settings in database
     try {
+      console.log('[BlindLevels] Updating blind levels:', blindLevels);
       const response = await fetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
           settings: {
-            ...eventData.settings,
-            levels: blindLevels
+            isRunning: false,
+            currentLevel: 0,
+            timeRemaining: 0,
+            levels: blindLevels.map(level => ({
+              ...level,
+              duration: level.duration * 60 // Convert minutes to seconds
+            })),
+            isRoomManagementEnabled: eventData.roomManagement?.isRoomManagementEnabled ?? false,
+            showWaitlistOnDisplay: eventData.roomManagement?.showWaitlistOnDisplay ?? false
           }
         })
       });
 
+      const responseText = await response.text();
+      console.log('[BlindLevels] Raw response:', responseText);
+
       if (!response.ok) {
-        throw new Error('Failed to update blind levels');
+        try {
+          const error = JSON.parse(responseText);
+          throw new Error(error.details || error.error || 'Failed to update blind levels');
+        } catch {
+          throw new Error(`Failed to update blind levels: ${responseText}`);
+        }
+      }
+
+      try {
+        const updatedEvent = JSON.parse(responseText);
+        console.log('[BlindLevels] Update successful:', updatedEvent);
+      } catch (e) {
+        console.error('[BlindLevels] Failed to parse response:', e);
+        throw new Error('Invalid response format');
       }
     } catch (error) {
-      console.error('Error updating blind levels:', error);
+      console.error('[BlindLevels] Error:', error);
+      throw error;
     }
   };
 
@@ -196,11 +215,18 @@ export default function NewPokerEvent() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          mediaItems
+          mediaItems: mediaItems.map(item => ({
+            type: item.type,
+            url: item.url,
+            displayOrder: item.displayOrder,
+            duration: item.duration
+          }))
         })
       });
 
       if (!response.ok) {
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
         throw new Error('Failed to update media items');
       }
     } catch (error) {
@@ -284,6 +310,33 @@ export default function NewPokerEvent() {
         roomManagement: eventData.roomManagement
       });
 
+      console.log('[Launch] Current table state before activation:', {
+        tableCount: tables.length,
+        tables: tables.map(table => ({
+          id: table.id,
+          seatCount: table.seats.length,
+          occupiedSeats: table.seats.filter(seat => seat !== null).length,
+          seats: table.seats
+        }))
+      });
+
+      // Convert tables to the correct format for the API
+      const formattedTables = tables.map(table => ({
+        id: table.id,
+        eventId: table.eventId,
+        number: table.number,
+        seats: table.seats.map((seat) => ({
+          id: seat.id,
+          position: seat.position,
+          playerId: seat.playerId,
+          playerName: seat.playerName,
+          createdAt: seat.createdAt
+        })),
+        createdAt: table.createdAt
+      }));
+
+      console.log('[Launch] Formatted tables for API:', formattedTables);
+
       // Update event status to ACTIVE and set final settings
       const response = await fetch(`/api/events/${eventId}`, {
         method: 'PATCH',
@@ -297,7 +350,8 @@ export default function NewPokerEvent() {
           settings: pokerSettings,
           mediaItems: eventData.mediaItems || [],
           displaySettings: eventData.displaySettings,
-          roomManagement: eventData.roomManagement
+          roomManagement: eventData.roomManagement,
+          tables: formattedTables
         })
       });
 
@@ -305,16 +359,34 @@ export default function NewPokerEvent() {
         throw new Error('Failed to activate event');
       }
 
-      console.log('[Launch] Event activated successfully');
+      const activatedEvent = await response.json();
+      console.log('[Launch] Event activated with tables:', {
+        eventId: activatedEvent.id,
+        tableCount: activatedEvent.tables?.length,
+        tables: activatedEvent.tables
+      });
 
-      // Initialize poker room state
+      // Initialize poker room state with the current table configuration
       const initialPokerRoomState = {
-        tables: [],
+        tables: tables.map(table => ({
+          id: table.id,
+          seats: table.seats.map(seat => seat ? { ...seat } : null)
+        })),
         waitingList: [],
         showRoomInfo: true,
         isRoomManagementEnabled: eventData.roomManagement?.isRoomManagementEnabled ?? false,
         showWaitlistOnDisplay: eventData.roomManagement?.showWaitlistOnDisplay ?? false
       };
+
+      console.log('[Launch] Initializing poker room state:', {
+        tableCount: initialPokerRoomState.tables.length,
+        tables: initialPokerRoomState.tables,
+        roomManagement: {
+          isEnabled: initialPokerRoomState.isRoomManagementEnabled,
+          showWaitlist: initialPokerRoomState.showWaitlistOnDisplay
+        }
+      });
+
       localStorage.setItem('pokerRoomState', JSON.stringify(initialPokerRoomState));
 
       // Initialize timer state

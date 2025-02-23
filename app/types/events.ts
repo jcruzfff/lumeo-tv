@@ -1,28 +1,79 @@
 export type EventType = 'POKER' | 'BASKETBALL' | 'CUSTOM';
-export type EventStatus = 'ACTIVE' | 'ENDED' | 'SCHEDULED';
+export type EventStatus = 'SCHEDULED' | 'ACTIVE' | 'ENDED';
+
+export interface BlindLevel {
+  id: string;
+  smallBlind: number;
+  bigBlind: number;
+  duration: number; // in minutes
+}
+
+export interface RoomManagementSettings {
+  isRoomManagementEnabled: boolean;
+  showWaitlistOnDisplay: boolean;
+}
+
+export interface PokerSettings extends RoomManagementSettings {
+  isRunning: boolean;
+  currentLevel: number;
+  timeRemaining: number; // in seconds
+  levels: BlindLevel[];
+}
+
+export interface BasketballSettings {
+  isRunning: boolean;
+  gameTime: number; // in seconds
+  period: number;
+  totalPeriods: number;
+  homeScore: number;
+  awayScore: number;
+}
+
+export interface CustomSettings {
+  isRunning: boolean;
+  timeRemaining: number; // in seconds
+}
+
+export interface DisplaySettings {
+  aspectRatio: '16:9' | '4:3' | '21:9';
+  timerPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+  mediaInterval: number; // in seconds
+  showTimer: boolean;
+  theme: 'dark' | 'light';
+  customColors: {
+    timerText: string; // hex color
+    timerBackground: string; // hex color
+  };
+}
 
 export interface MediaItem {
   id: string;
-  type: 'image' | 'video';
+  type: 'IMAGE' | 'VIDEO';
   url: string;
   displayOrder: number;
-  duration?: number;
+  duration?: number; // in seconds, for videos
+}
+
+export interface Seat {
+  id: string;
+  tableId: string;
+  position: number;
+  playerId: string | null;
+  playerName: string | null;
+  createdAt: string;
 }
 
 export interface Table {
   id: string;
+  eventId: string;
   number: number;
-  seats: {
-    id: string;
-    position: number;
-    playerId?: string;
-    playerName?: string;
-  }[];
+  seats: Seat[];
   createdAt: string;
 }
 
 export interface Player {
   id: string;
+  eventId: string;
   name: string;
   position: number;
   addedAt: string;
@@ -33,24 +84,58 @@ export interface Event {
   name: string;
   type: EventType;
   status: EventStatus;
-  settings: {
-    timeRemaining?: number;
-    currentLevel?: number;
-    levels?: { smallBlind: number; bigBlind: number }[];
-    gameTime?: number;
-    period?: number;
-    totalPeriods?: number;
-    homeScore?: number;
-    awayScore?: number;
-    isRunning?: boolean;
-  };
+  createdAt: string; // ISO date string
+  startedAt?: string; // ISO date string
+  endedAt?: string; // ISO date string
+  settings: PokerSettings | BasketballSettings | CustomSettings;
+  displaySettings: DisplaySettings;
   mediaItems: MediaItem[];
   tables: Table[];
   waitingList: Player[];
-  createdAt: string;
-  startedAt: string;
-  endedAt?: string;
-  creatorId?: string;
-  displayUrl: string;
-  adminUrl: string;
+  displayUrl?: string;
+  adminUrl?: string;
+}
+
+// Type guard to check if settings are PokerSettings
+export function isPokerSettings(settings: any): settings is PokerSettings {
+  return settings && 
+    typeof settings.isRunning === 'boolean' &&
+    typeof settings.currentLevel === 'number' &&
+    Array.isArray(settings.levels);
+}
+
+// Type guard to check if settings are BasketballSettings
+export function isBasketballSettings(settings: any): settings is BasketballSettings {
+  return settings && 
+    typeof settings.isRunning === 'boolean' &&
+    typeof settings.gameTime === 'number' &&
+    typeof settings.period === 'number';
+}
+
+// Type guard to check if settings are CustomSettings
+export function isCustomSettings(settings: any): settings is CustomSettings {
+  return settings && 
+    typeof settings.isRunning === 'boolean' &&
+    typeof settings.timeRemaining === 'number';
+}
+
+// Type guard for Player
+export function isPlayer(obj: any): obj is Player {
+  return obj &&
+    typeof obj.id === 'string' &&
+    typeof obj.eventId === 'string' &&
+    typeof obj.name === 'string' &&
+    typeof obj.position === 'number' &&
+    typeof obj.addedAt === 'string';
+}
+
+// Type guard for Seat
+export function isSeat(obj: any): obj is Seat {
+  return obj &&
+    typeof obj.id === 'string' &&
+    typeof obj.tableId === 'string' &&
+    typeof obj.position === 'number' &&
+    (obj.playerId === null || typeof obj.playerId === 'string') &&
+    (obj.playerName === null || typeof obj.playerName === 'string') &&
+    typeof obj.createdAt === 'string';
 } 

@@ -7,19 +7,7 @@ import { useMedia } from '@/app/contexts/MediaContext';
 import { usePokerRoom, PokerRoomState } from '@/app/contexts/PokerRoomContext';
 import Image from 'next/image';
 import { MediaItem } from '@/app/types';
-
-interface TableSeat {
-  id: string;
-  position: number;
-  playerId?: string;
-  playerName?: string;
-}
-
-interface Table {
-  id: string;
-  name: string;
-  seats: TableSeat[];
-}
+import { Table, Seat, Player } from '@/app/types/events';
 
 interface WaitingPlayer {
   id: string;
@@ -28,7 +16,8 @@ interface WaitingPlayer {
 }
 
 export default function EventDisplay() {
-  const { eventId } = useParams();
+  const params = useParams();
+  const eventId = params.eventId as string;
   const { activeTimer, pokerState, basketballState, customTimerState, setBasketballState, setActiveTimer, setPokerState } = useTimer();
   const { mediaItems, currentMediaIndex, setCurrentMediaIndex, setMediaItems } = useMedia();
   const { waitingList, isRoomManagementEnabled, showWaitlistOnDisplay, setState: setPokerRoomState } = usePokerRoom();
@@ -110,16 +99,21 @@ export default function EventDisplay() {
 
           // Process tables and waitlist data
           const processedTables = (event.tables || []).map((table: Table) => ({
-            id: parseInt(table.id),
-            seats: table.seats.map((seat: TableSeat) => 
-              seat.playerId ? { id: seat.playerId, name: seat.playerName || '' } : null
-            )
+            id: table.id,
+            eventId: table.eventId,
+            number: table.number,
+            seats: table.seats.map((seat: Seat) => ({
+              ...seat,
+              playerId: seat.playerId || undefined,
+              playerName: seat.playerName || undefined
+            })),
+            createdAt: table.createdAt
           }));
 
           // Process waitlist and ensure it's sorted by position
           const processedWaitlist = (event.waitingList || [])
-            .sort((a: WaitingPlayer, b: WaitingPlayer) => a.position - b.position)
-            .map((player: WaitingPlayer) => ({
+            .sort((a: Player, b: Player) => a.position - b.position)
+            .map((player: Player) => ({
               id: player.id,
               name: player.name,
               position: player.position
@@ -311,6 +305,8 @@ export default function EventDisplay() {
 
   // Set up broadcast channel for event end
   useEffect(() => {
+    if (!eventId) return;
+    
     console.log('[Display] Setting up broadcast channel');
     const bc = new BroadcastChannel('lumeo-events');
     
@@ -318,11 +314,9 @@ export default function EventDisplay() {
       console.log('[Display] Broadcast message received:', event.data);
       if (event.data.type === 'END_EVENT' && event.data.eventId === eventId) {
         console.log('[Display] Event end signal received, closing window');
-        // Exit fullscreen if needed
         if (document.fullscreenElement) {
           document.exitFullscreen();
         }
-        // Close the window
         window.close();
       }
     };
@@ -335,6 +329,8 @@ export default function EventDisplay() {
 
   // Check if event is already ended
   useEffect(() => {
+    if (!eventId) return;
+
     const checkEventStatus = async () => {
       try {
         const response = await fetch(`/api/events/${eventId}`, {
@@ -359,62 +355,41 @@ export default function EventDisplay() {
 
   // Poll for basketball score updates
   useEffect(() => {
-    if (!isClientReady || activeTimer !== 'basketball') return;
-
-    const loadState = () => {
-      const savedState = localStorage.getItem('timerState');
-      if (savedState) {
-        const parsedState = JSON.parse(savedState);
-        if (parsedState.basketballState) {
-          setBasketballState(parsedState.basketballState);
-        }
-      }
-    };
-
-    loadState();
+    if (!isClientReady || activeTimer !== 'basketball' || !eventId) return;
 
     const pollInterval = setInterval(() => {
-      const eventId = localStorage.getItem('activeEventId');
-      if (eventId) {
-        fetch(`/api/events/${eventId}/score`, {
-          credentials: 'include'
+      fetch(`/api/events/${eventId}/score`, {
+        credentials: 'include'
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (setBasketballState) {
+            setBasketballState(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                homeScore: data.homeScore,
+                awayScore: data.awayScore
+              };
+            });
+          }
         })
-          .then(res => res.json())
-          .then(data => {
-            if (setBasketballState) {
-              setBasketballState(prev => {
-                if (!prev) return prev;
-                return {
-                  ...prev,
-                  homeScore: data.homeScore,
-                  awayScore: data.awayScore
-                };
-              });
-            }
-          })
-          .catch(error => {
-            console.error('Error polling score:', error);
-          });
-      }
+        .catch(error => {
+          console.error('Error polling score:', error);
+        });
     }, 1000);
 
     return () => clearInterval(pollInterval);
-  }, [isClientReady, activeTimer, setBasketballState]);
+  }, [isClientReady, activeTimer, eventId, setBasketballState]);
 
   // Poll for poker room state updates
   useEffect(() => {
-    if (!isClientReady || activeTimer !== 'poker') return;
+    if (!isClientReady || activeTimer !== 'poker' || !eventId) return;
 
     console.log('[Display] Setting up poker room state polling');
 
     const pollRoomState = async () => {
       try {
-        const eventId = localStorage.getItem('activeEventId');
-        if (!eventId) {
-          console.log('[Display] No activeEventId found in localStorage');
-          return;
-        }
-
         console.log('[Display] Polling event data for ID:', eventId);
         const response = await fetch(`/api/events/${eventId}`, {
           credentials: 'include'
@@ -437,16 +412,21 @@ export default function EventDisplay() {
         
         // Process tables and waitlist data
         const processedTables = (event.tables || []).map((table: Table) => ({
-          id: parseInt(table.id),
-          seats: table.seats.map((seat: TableSeat) => 
-            seat.playerId ? { id: seat.playerId, name: seat.playerName || '' } : null
-          )
+          id: table.id,
+          eventId: table.eventId,
+          number: table.number,
+          seats: table.seats.map((seat: Seat) => ({
+            ...seat,
+            playerId: seat.playerId || undefined,
+            playerName: seat.playerName || undefined
+          })),
+          createdAt: table.createdAt
         }));
 
         // Process waitlist and ensure it's sorted by position
         const processedWaitlist = (event.waitingList || [])
-          .sort((a: WaitingPlayer, b: WaitingPlayer) => a.position - b.position)
-          .map((player: WaitingPlayer) => ({
+          .sort((a: Player, b: Player) => a.position - b.position)
+          .map((player: Player) => ({
             id: player.id,
             name: player.name,
             position: player.position
@@ -500,7 +480,7 @@ export default function EventDisplay() {
     const interval = setInterval(pollRoomState, 1000);
 
     return () => clearInterval(interval);
-  }, [isClientReady, activeTimer, setPokerRoomState]);
+  }, [isClientReady, activeTimer, eventId, setPokerRoomState]);
 
   if (isLoading) {
     return (

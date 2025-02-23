@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Event } from '@/app/types/events';
+import { isBasketballSettings } from '@/app/types/events';
 
 interface UseEventManagementProps {
   eventId: string;
@@ -277,8 +278,14 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
     try {
       if (!event) return;
       setIsLoading(true);
+
+      // Type guard for basketball settings
+      if (event.type !== 'BASKETBALL' || !isBasketballSettings(event.settings)) {
+        throw new Error('Invalid event type or settings for basketball score update');
+      }
+
       const currentScore = team === 'home' ? event.settings.homeScore : event.settings.awayScore;
-      const newScore = Math.max(0, (currentScore ?? 0) + points);
+      const newScore = Math.max(0, currentScore + points);
 
       const response = await fetch(`/api/events/${eventId}`, {
         method: 'PATCH',
@@ -312,30 +319,15 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
     try {
       if (!event) return;
       setIsLoading(true);
-      console.log('[EventManagement] Ending event:', event.id);
 
-      const response = await fetch(`/api/events/${event.id}`, {
+      const response = await fetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           status: 'ENDED',
-          settings: {
-            ...event.settings,
-            isRunning: false,
-            endedAt: new Date().toISOString(),
-            finalState: event.type === 'BASKETBALL' ? {
-              homeScore: event.settings.homeScore,
-              awayScore: event.settings.awayScore,
-              period: event.settings.period,
-              gameTime: event.settings.gameTime
-            } : {
-              currentLevel: event.settings.currentLevel,
-              timeRemaining: event.settings.timeRemaining,
-              totalLevels: event.settings.levels?.length
-            }
-          }
+          endedAt: new Date().toISOString()
         })
       });
 
@@ -344,40 +336,13 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
       }
 
       const updatedEvent = await response.json();
-      console.log('[EventManagement] Event ended successfully:', updatedEvent);
-
-      // Broadcast event end to all display windows
-      console.log('[EventManagement] Broadcasting event end signal');
-      const bc = new BroadcastChannel('lumeo-events');
-      bc.postMessage({ 
-        type: 'END_EVENT', 
-        eventId: event.id,
-        timestamp: new Date().toISOString()
-      });
-      bc.close();
-
-      // Clear local storage
-      console.log('[EventManagement] Clearing local storage');
-      localStorage.removeItem('timerState');
-      localStorage.removeItem('activeEventId');
-      localStorage.removeItem('mediaState');
-      localStorage.removeItem('displaySettings');
-      localStorage.removeItem('pokerRoomState');
-      localStorage.removeItem('timerPersistentState');
-
       setEvent(updatedEvent);
-
-      // Redirect to history page
-      console.log('[EventManagement] Redirecting to history page');
-      window.location.href = '/events/history';
-
     } catch (error) {
-      console.error('[EventManagement] Error ending event:', error);
       setError(error instanceof Error ? error.message : 'Failed to end event');
     } finally {
       setIsLoading(false);
     }
-  }, [event]);
+  }, [event, eventId]);
 
   return {
     event,
