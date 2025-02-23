@@ -25,18 +25,49 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
     setShowWaitlistOnDisplay,
   } = usePokerRoom();
 
-  // Call onCompleteAction whenever relevant state changes
-  const handleSettingsChange = (enabled: boolean, showWaitlist: boolean) => {
+  // Call onCompleteAction and update event whenever relevant state changes
+  const handleSettingsChange = async (enabled: boolean, showWaitlist: boolean) => {
+    // Update local state through the context
     onCompleteAction({
       isRoomManagementEnabled: enabled,
       showWaitlistOnDisplay: showWaitlist
     });
+
+    try {
+      // Get the event ID from localStorage
+      const eventId = localStorage.getItem('activeEventId');
+      if (!eventId) {
+        console.error('No active event ID found');
+        return;
+      }
+
+      // Update event settings in the database
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          roomManagement: {
+            isRoomManagementEnabled: enabled,
+            showWaitlistOnDisplay: showWaitlist
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update event settings');
+      }
+
+      console.log('Room management settings updated successfully');
+    } catch (error) {
+      console.error('Error updating room management settings:', error);
+    }
   };
 
-  // Ensure room management is off by default
+  // Initialize room management settings
   useEffect(() => {
-    setIsRoomManagementEnabled(false);
-    setShowWaitlistOnDisplay(false);
     handleSettingsChange(false, false);
   }, []);
 

@@ -20,14 +20,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const session = await getServerSession(authOptions)
     console.log('Session state:', session ? 'Authenticated' : 'Unauthenticated')
 
-    if (!session) {
-      console.log('Unauthorized access attempt')
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
+    // Allow unauthenticated access for GET requests
     const event = await prisma.event.findUnique({
       where: {
         id: eventId
@@ -47,6 +40,14 @@ export async function GET(request: Request, { params }: RouteParams) {
       return NextResponse.json(
         { error: 'Event not found' },
         { status: 404 }
+      );
+    }
+
+    // If the event is ended, only allow access with authentication
+    if (event.status === 'ENDED' && !session) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 

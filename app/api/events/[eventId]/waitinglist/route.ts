@@ -12,6 +12,7 @@ export async function POST(request: Request, { params }: RouteParams) {
   try {
     const { eventId } = params;
     const { name } = await request.json();
+    console.log('[Waitlist API] Adding player:', { eventId, name });
 
     // Get the current highest position
     const lastPlayer = await prisma.player.findFirst({
@@ -22,8 +23,10 @@ export async function POST(request: Request, { params }: RouteParams) {
         position: 'desc'
       }
     });
+    console.log('[Waitlist API] Current last player:', lastPlayer);
 
     const newPosition = (lastPlayer?.position ?? 0) + 1;
+    console.log('[Waitlist API] New position:', newPosition);
 
     const player = await prisma.player.create({
       data: {
@@ -32,10 +35,11 @@ export async function POST(request: Request, { params }: RouteParams) {
         eventId
       }
     });
+    console.log('[Waitlist API] Created player:', player);
 
     return NextResponse.json(player);
   } catch (error) {
-    console.error('Error adding player to waiting list:', error);
+    console.error('[Waitlist API] Error adding player:', error);
     return NextResponse.json(
       { error: 'Failed to add player to waiting list' },
       { status: 500 }

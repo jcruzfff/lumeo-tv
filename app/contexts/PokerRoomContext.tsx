@@ -1,7 +1,6 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 
 export interface Player {
   id: string;
@@ -128,40 +127,133 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
-  const addToWaitingList = (name: string) => {
+  const addToWaitingList = async (name: string) => {
     console.log('PokerRoomContext - Adding player to waitlist:', name);
-    setState(prev => {
-      const newState = {
-        ...prev,
-        waitingList: [...prev.waitingList, { id: uuidv4(), name }],
-      };
-      console.log('PokerRoomContext - New state after adding player:', newState);
-      return newState;
-    });
+    
+    try {
+      // Get the event ID from localStorage
+      const eventId = localStorage.getItem('activeEventId');
+      if (!eventId) {
+        console.error('PokerRoomContext - No active event ID found');
+        return;
+      }
+
+      // Make API call to add player to waitlist
+      const response = await fetch(`/api/events/${eventId}/waitinglist`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ name })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add player to waitlist');
+      }
+
+      const newPlayer = await response.json();
+      console.log('PokerRoomContext - API response:', newPlayer);
+
+      // Update local state
+      setState(prev => {
+        const newState = {
+          ...prev,
+          waitingList: [...prev.waitingList, newPlayer],
+        };
+        console.log('PokerRoomContext - New state after adding player:', newState);
+        return newState;
+      });
+    } catch (error) {
+      console.error('PokerRoomContext - Error adding player:', error);
+    }
   };
 
-  const removeFromWaitingList = (index: number) => {
+  const removeFromWaitingList = async (index: number) => {
     console.log('PokerRoomContext - Removing player at index:', index);
-    setState(prev => {
-      const newState = {
-        ...prev,
-        waitingList: prev.waitingList.filter((_, i) => i !== index),
-      };
-      console.log('PokerRoomContext - New state after removing player:', newState);
-      return newState;
-    });
+    
+    try {
+      // Get the event ID from localStorage
+      const eventId = localStorage.getItem('activeEventId');
+      if (!eventId) {
+        console.error('PokerRoomContext - No active event ID found');
+        return;
+      }
+
+      const player = state.waitingList[index];
+      if (!player) {
+        console.error('PokerRoomContext - Player not found at index:', index);
+        return;
+      }
+
+      // Make API call to remove player from waitlist
+      const response = await fetch(`/api/events/${eventId}/waitinglist`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ playerId: player.id })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove player from waitlist');
+      }
+
+      // Update local state
+      setState(prev => {
+        const newState = {
+          ...prev,
+          waitingList: prev.waitingList.filter((_, i) => i !== index),
+        };
+        console.log('PokerRoomContext - New state after removing player:', newState);
+        return newState;
+      });
+    } catch (error) {
+      console.error('PokerRoomContext - Error removing player:', error);
+    }
   };
 
-  const reorderWaitingList = (newOrder: Player[]) => {
+  const reorderWaitingList = async (newOrder: Player[]) => {
     console.log('PokerRoomContext - Reordering waitlist:', newOrder);
-    setState(prev => {
-      const newState = {
-        ...prev,
-        waitingList: newOrder,
-      };
-      console.log('PokerRoomContext - New state after reordering:', newState);
-      return newState;
-    });
+    
+    try {
+      // Get the event ID from localStorage
+      const eventId = localStorage.getItem('activeEventId');
+      if (!eventId) {
+        console.error('PokerRoomContext - No active event ID found');
+        return;
+      }
+
+      // Update each player's position
+      for (let i = 0; i < newOrder.length; i++) {
+        const player = newOrder[i];
+        const response = await fetch(`/api/events/${eventId}/waitinglist`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({ playerId: player.id, newPosition: i + 1 })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to update position for player ${player.name}`);
+        }
+      }
+
+      // Update local state
+      setState(prev => {
+        const newState = {
+          ...prev,
+          waitingList: newOrder,
+        };
+        console.log('PokerRoomContext - New state after reordering:', newState);
+        return newState;
+      });
+    } catch (error) {
+      console.error('PokerRoomContext - Error reordering waitlist:', error);
+    }
   };
 
   const toggleRoomInfo = () => {

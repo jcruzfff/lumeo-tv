@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Pencil } from 'lucide-react';
 import BlindLevelsStep from './components/BlindLevelsStep';
 import RoomManagementStep from './components/RoomManagementStep';
@@ -25,6 +25,7 @@ export default function NewPokerEvent() {
   const [eventName, setEventName] = useState('New Poker Event');
   const [isEditingName, setIsEditingName] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [eventId, setEventId] = useState<string | null>(null);
   const [eventData, setEventData] = useState<{
     blindLevels?: BlindLevel[];
     roomManagement?: {
@@ -55,22 +56,159 @@ export default function NewPokerEvent() {
   const { setState } = usePokerRoom();
   const router = useRouter();
 
-  const handleBlindLevelsComplete = (blindLevels: BlindLevel[]) => {
+  // Create event when component mounts
+  useEffect(() => {
+    const createEvent = async () => {
+      try {
+        console.log('[Init] Starting poker event creation');
+        const response = await fetch('/api/events', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: eventName,
+            type: 'POKER',
+            status: 'SCHEDULED',
+            settings: {
+              isRunning: false,
+              currentLevel: 0,
+              timeRemaining: 0,
+              levels: [],
+              breakDuration: 0,
+              totalPlayTime: 0
+            },
+            mediaItems: [],
+            displaySettings: {
+              aspectRatio: '16:9',
+              timerPosition: 'top-right',
+              mediaInterval: 15,
+              showTimer: true,
+              theme: 'dark',
+              customColors: {
+                timerText: '#FFFFFF',
+                timerBackground: '#000000',
+              },
+            },
+            roomManagement: {
+              isRoomManagementEnabled: false,
+              showWaitlistOnDisplay: false
+            }
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to create event');
+        }
+
+        const createdEvent = await response.json();
+        console.log('[Init] Event created successfully:', {
+          id: createdEvent.id,
+          name: createdEvent.name,
+          type: createdEvent.type,
+          status: createdEvent.status
+        });
+
+        // Store event ID in state and localStorage
+        setEventId(createdEvent.id);
+        localStorage.setItem('activeEventId', createdEvent.id);
+        
+        console.log('[Init] Event ID stored:', {
+          stateEventId: createdEvent.id,
+          localStorageEventId: localStorage.getItem('activeEventId')
+        });
+
+      } catch (error) {
+        console.error('[Init] Error:', error);
+        alert(error instanceof Error ? error.message : 'Failed to create event');
+      }
+    };
+
+    createEvent();
+  }, [eventName]);
+
+  const handleBlindLevelsComplete = async (blindLevels: BlindLevel[]) => {
+    if (!eventId) return;
+
     setEventData({ ...eventData, blindLevels });
+
+    // Update event settings in database
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          settings: {
+            ...eventData.settings,
+            levels: blindLevels
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update blind levels');
+      }
+    } catch (error) {
+      console.error('Error updating blind levels:', error);
+    }
   };
 
-  const handleRoomManagementComplete = (roomSettings: { 
+  const handleRoomManagementComplete = async (roomSettings: { 
     isRoomManagementEnabled: boolean; 
     showWaitlistOnDisplay: boolean 
   }) => {
+    if (!eventId) return;
+
     setEventData({ ...eventData, roomManagement: roomSettings });
+
+    // Update event settings in database
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          roomManagement: roomSettings
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update room management settings');
+      }
+    } catch (error) {
+      console.error('Error updating room management settings:', error);
+    }
   };
 
-  const handleMediaComplete = (mediaItems: MediaItem[]) => {
+  const handleMediaComplete = async (mediaItems: MediaItem[]) => {
+    if (!eventId) return;
+
     setEventData({ ...eventData, mediaItems });
+
+    // Update event settings in database
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          mediaItems
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update media items');
+      }
+    } catch (error) {
+      console.error('Error updating media items:', error);
+    }
   };
 
-  const handleDisplaySettingsComplete = (displaySettings: {
+  const handleDisplaySettingsComplete = async (displaySettings: {
     aspectRatio: '16:9' | '4:3' | '21:9';
     timerPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
     mediaInterval: number;
@@ -81,7 +219,28 @@ export default function NewPokerEvent() {
       timerBackground: string;
     };
   }) => {
+    if (!eventId) return;
+
     setEventData({ ...eventData, displaySettings });
+
+    // Update event settings in database
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          displaySettings
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update display settings');
+      }
+    } catch (error) {
+      console.error('Error updating display settings:', error);
+    }
   };
 
   const handleNextStep = () => {
@@ -103,13 +262,13 @@ export default function NewPokerEvent() {
 
   const handleLaunchLumeo = async () => {
     try {
-      if (!eventData.blindLevels) {
-        throw new Error('Blind levels must be configured');
+      if (!eventId || !eventData.blindLevels) {
+        throw new Error('Event ID or blind levels not configured');
       }
 
       // Create initial poker state
       const pokerSettings = {
-        isRunning: true, // Start timer automatically
+        isRunning: true,
         currentLevel: 0,
         timeRemaining: eventData.blindLevels[0].duration * 60,
         levels: eventData.blindLevels,
@@ -117,7 +276,7 @@ export default function NewPokerEvent() {
         totalPlayTime: eventData.blindLevels.reduce((total, level) => total + level.duration, 0)
       };
 
-      console.log('[Launch] Creating poker event with settings:', {
+      console.log('[Launch] Activating poker event with settings:', {
         eventName,
         type: 'POKER',
         settings: pokerSettings,
@@ -125,117 +284,55 @@ export default function NewPokerEvent() {
         roomManagement: eventData.roomManagement
       });
 
-      // Create event in database
-      const response = await fetch('/api/events', {
-        method: 'POST',
+      // Update event status to ACTIVE and set final settings
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          name: eventName,
-          type: 'POKER',
           status: 'ACTIVE',
+          startedAt: new Date().toISOString(),
+          name: eventName,
           settings: pokerSettings,
           mediaItems: eventData.mediaItems || [],
           displaySettings: eventData.displaySettings,
-          roomManagement: eventData.roomManagement,
-          startedAt: new Date().toISOString()
+          roomManagement: eventData.roomManagement
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create event');
+        throw new Error('Failed to activate event');
       }
 
-      const createdEvent = await response.json();
-      console.log('[Launch] Event created successfully:', createdEvent);
+      console.log('[Launch] Event activated successfully');
 
-      // Store event ID
-      localStorage.setItem('activeEventId', createdEvent.id);
+      // Initialize poker room state
+      const initialPokerRoomState = {
+        tables: [],
+        waitingList: [],
+        showRoomInfo: true,
+        isRoomManagementEnabled: eventData.roomManagement?.isRoomManagementEnabled ?? false,
+        showWaitlistOnDisplay: eventData.roomManagement?.showWaitlistOnDisplay ?? false
+      };
+      localStorage.setItem('pokerRoomState', JSON.stringify(initialPokerRoomState));
+
+      // Initialize timer state
+      setActiveTimer('poker');
+      setPokerState(pokerSettings);
+
+      // Initialize media state
+      if (eventData.mediaItems) {
+        storeMediaItems(eventData.mediaItems);
+      }
 
       // Store display settings
-      console.log('[Launch] Storing display settings');
-      const defaultDisplaySettings = {
-        aspectRatio: '16:9',
-        timerPosition: 'top-right',
-        mediaInterval: 15,
-        showTimer: true,
-        theme: 'dark',
-        customColors: {
-          timerText: '#FFFFFF',
-          timerBackground: '#000000',
-        }
-      };
-      const displaySettings = eventData.displaySettings 
-        ? { 
-            ...defaultDisplaySettings, 
-            ...eventData.displaySettings,
-            customColors: {
-              ...defaultDisplaySettings.customColors,
-              ...(eventData.displaySettings.customColors || {})
-            }
-          }
-        : defaultDisplaySettings;
-      
-      console.log('[Launch] Final display settings:', displaySettings);
-      localStorage.setItem('displaySettings', JSON.stringify(displaySettings));
-
-      // Store media items if available
-      const mediaItems = eventData.mediaItems || [];
-      if (mediaItems.length > 0) {
-        console.log('[Launch] Storing media items:', mediaItems.length);
-        storeMediaItems(mediaItems);
-        localStorage.setItem('mediaState', JSON.stringify({
-          mediaItems,
-          currentMediaIndex: 0,
-        }));
+      if (eventData.displaySettings) {
+        localStorage.setItem('displaySettings', JSON.stringify(eventData.displaySettings));
       }
 
-      // Store room management settings if enabled
-      if (eventData.roomManagement?.isRoomManagementEnabled) {
-        console.log('[Launch] Initializing room management state');
-        setState({
-          tables: [],
-          waitingList: [],
-          showRoomInfo: true,
-          isRoomManagementEnabled: eventData.roomManagement.isRoomManagementEnabled,
-          showWaitlistOnDisplay: eventData.roomManagement.showWaitlistOnDisplay
-        });
-        localStorage.setItem('pokerRoomState', JSON.stringify({
-          tables: [],
-          waitingList: [],
-          showRoomInfo: true,
-          isRoomManagementEnabled: eventData.roomManagement.isRoomManagementEnabled,
-          showWaitlistOnDisplay: eventData.roomManagement.showWaitlistOnDisplay
-        }));
-      }
-
-      // Update timer state with isRunning set to true
-      console.log('[Launch] Updating timer state');
-      setPokerState(pokerSettings);
-      setActiveTimer('poker');
-
-      // Store timer state in localStorage
-      localStorage.setItem('timerState', JSON.stringify({
-        activeTimer: 'poker',
-        pokerState: pokerSettings
-      }));
-
-      // Open display window
-      if (createdEvent.displayUrl) {
-        console.log('[Launch] Opening display window');
-        const displayWindow = window.open(createdEvent.displayUrl, 'lumeo-display', 'width=1920,height=1080');
-        if (!displayWindow) {
-          console.error('[Launch] Failed to open display window - popup may be blocked');
-          alert('Please allow popups to open the display window');
-        } else {
-          displayWindow.focus();
-        }
-      }
-
-      // Navigate admin to active events page
-      console.log('[Launch] Navigating to active events page');
-      router.push('/events/active');
+      // Navigate to event management page
+      router.push(`/events/active/${eventId}`);
 
     } catch (error) {
       console.error('[Launch] Error:', error);
