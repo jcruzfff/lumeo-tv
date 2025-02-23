@@ -59,12 +59,17 @@ export default function NewBasketballEvent() {
         throw new Error('Timer settings not configured');
       }
 
-      const eventSettings: BasketballTimerState = {
-        ...timerSettings,
-        isRunning: true
+      // Create the initial basketball state
+      const basketballSettings: BasketballTimerState = {
+        isRunning: false,
+        gameTime: timerSettings.gameTime,
+        period: 1,
+        homeScore: 0,
+        awayScore: 0,
+        totalPeriods: timerSettings.totalPeriods
       };
 
-      console.log('Creating basketball event with settings:', eventSettings);
+      console.log('Creating basketball event with settings:', basketballSettings);
 
       // Create the event in the database
       const response = await fetch('/api/events', {
@@ -75,8 +80,21 @@ export default function NewBasketballEvent() {
         body: JSON.stringify({
           name: eventName,
           type: 'BASKETBALL',
-          settings: eventSettings,
-          mediaItems: selectedMedia
+          status: 'ACTIVE',
+          startedAt: new Date().toISOString(),
+          settings: basketballSettings,
+          mediaItems: selectedMedia,
+          displaySettings: displaySettings || {
+            aspectRatio: '16:9',
+            timerPosition: 'top-right',
+            mediaInterval: 15,
+            showTimer: true,
+            theme: 'dark',
+            customColors: {
+              timerText: '#FFFFFF',
+              timerBackground: '#000000',
+            }
+          }
         }),
       });
 
@@ -88,47 +106,80 @@ export default function NewBasketballEvent() {
       const event = await response.json();
       console.log('Event created:', event);
 
-      // Update timer state
-      setBasketballState(eventSettings);
-      setActiveTimer('basketball');
-
-      // Store media items
-      storeMediaItems(selectedMedia);
-      localStorage.setItem('mediaState', JSON.stringify({
-        mediaItems: selectedMedia,
-        currentMediaIndex: 0,
+      // Store event data first
+      localStorage.setItem('activeEventId', event.id);
+      localStorage.setItem('timerPersistentState', JSON.stringify({
+        startTime: Date.now(),
+        initialGameTime: basketballSettings.gameTime,
+        periodLength: basketballSettings.gameTime / 60,
+        isRunning: false,
+        period: 1,
+        totalPeriods: basketballSettings.totalPeriods
       }));
 
       // Store display settings
-      localStorage.setItem('displaySettings', JSON.stringify(displaySettings));
+      const defaultDisplaySettings = {
+        aspectRatio: '16:9',
+        timerPosition: 'top-right',
+        mediaInterval: 15,
+        showTimer: true,
+        theme: 'dark',
+        customColors: {
+          timerText: '#FFFFFF',
+          timerBackground: '#000000',
+        }
+      };
+      localStorage.setItem('displaySettings', JSON.stringify(displaySettings || defaultDisplaySettings));
 
-      // Store the event ID
-      localStorage.setItem('activeEventId', event.id);
+      // Store media items if any
+      if (selectedMedia.length > 0) {
+        storeMediaItems(selectedMedia);
+        localStorage.setItem('mediaState', JSON.stringify({
+          mediaItems: selectedMedia,
+          currentMediaIndex: 0,
+        }));
+      }
 
-      // Save initial timer state to localStorage
-      localStorage.setItem('timerPersistentState', JSON.stringify({
-        startTime: Date.now(),
-        initialGameTime: eventSettings.gameTime,
-        isRunning: false,
-        period: 1,
-        totalPeriods: eventSettings.totalPeriods
-      }));
+      // Update timer state
+      setBasketballState(basketballSettings);
+      setActiveTimer('basketball');
 
-      // Get the actual host URL and open display in new window
-      const protocol = window.location.protocol;
-      const host = window.location.host;
-      const displayUrl = `${protocol}//${host}/display`;
-      window.open(displayUrl, '_blank');
+      // Open display in new window
+      if (event.displayUrl) {
+        const windowFeatures = {
+          width: 1920,
+          height: 1080,
+          menubar: 'no',
+          toolbar: 'no',
+          location: 'no',
+          status: 'no',
+          resizable: 'yes'
+        };
+        const featuresString = Object.entries(windowFeatures)
+          .map(([key, value]) => `${key}=${value}`)
+          .join(',');
 
-      // Navigate to active events
+        // Open display window with unique name to prevent duplicates
+        const displayWindow = window.open(
+          event.displayUrl,
+          `lumeo_display_${event.id}`,
+          featuresString
+        );
+
+        if (!displayWindow) {
+          console.error('Failed to open display window - popup may be blocked');
+          alert('Please allow popups to open the display window');
+        } else {
+          displayWindow.focus();
+        }
+      }
+
+      // Navigate admin window to active events
       router.push('/events/active');
+
     } catch (error) {
       console.error('Error launching display:', error);
-      if (error instanceof Error) {
-        alert(`Failed to launch display: ${error.message}`);
-      } else {
-        alert('Failed to launch display. Please try again.');
-      }
+      alert(error instanceof Error ? error.message : 'Failed to launch display');
     }
   };
 

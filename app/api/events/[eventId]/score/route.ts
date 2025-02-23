@@ -1,6 +1,6 @@
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma'
 import { BasketballTimerState } from '@/app/types'
-import { Prisma } from '@prisma/client'
 
 function isBasketballTimerState(settings: unknown): settings is BasketballTimerState {
   const s = settings as BasketballTimerState;
@@ -11,55 +11,61 @@ function isBasketballTimerState(settings: unknown): settings is BasketballTimerS
     typeof s.totalPeriods === 'number';
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: { eventId: string } }
-) {
+interface RouteParams {
+  params: {
+    eventId: string;
+  };
+}
+
+interface EventSettings {
+  timeRemaining?: number;
+  currentLevel?: number;
+  levels?: { smallBlind: number; bigBlind: number }[];
+  gameTime?: number;
+  period?: number;
+  totalPeriods?: number;
+  homeScore?: number;
+  awayScore?: number;
+  isRunning?: boolean;
+}
+
+export async function POST(request: Request, { params }: RouteParams) {
   try {
+    const { eventId } = params;
     const { homeScore, awayScore } = await request.json();
-    
-    // Validate the event exists and get current settings
+
     const event = await prisma.event.findUnique({
-      where: { id: params.eventId },
+      where: {
+        id: eventId
+      }
     });
 
     if (!event) {
-      return new Response(JSON.stringify({ error: 'Event not found' }), {
-        status: 404,
-      });
+      return NextResponse.json(
+        { error: 'Event not found' },
+        { status: 404 }
+      );
     }
 
-    // Validate and update settings
-    if (!isBasketballTimerState(event.settings)) {
-      return new Response(JSON.stringify({ error: 'Invalid event settings' }), {
-        status: 400,
-      });
-    }
-
-    // Update only the scores while preserving other settings
-    const updatedSettings: Prisma.JsonObject = {
-      ...event.settings as BasketballTimerState,
-      homeScore,
-      awayScore,
-      // Ensure period is within bounds
-      period: Math.min(event.settings.period, event.settings.totalPeriods || 4),
-      // Default to 4 periods if not specified
-      totalPeriods: event.settings.totalPeriods || 4
-    };
-
-    // Update the event
+    const currentSettings = event.settings as EventSettings;
     const updatedEvent = await prisma.event.update({
-      where: { id: params.eventId },
-      data: {
-        settings: updatedSettings
+      where: {
+        id: eventId
       },
+      data: {
+        settings: {
+          ...currentSettings,
+          homeScore,
+          awayScore
+        }
+      }
     });
 
-    return new Response(JSON.stringify(updatedEvent));
+    return NextResponse.json(updatedEvent);
   } catch (error) {
     console.error('Error updating score:', error);
-    return new Response(
-      JSON.stringify({ error: 'Failed to update score' }),
+    return NextResponse.json(
+      { error: 'Failed to update score' },
       { status: 500 }
     );
   }

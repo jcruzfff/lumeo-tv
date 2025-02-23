@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 export default function SignIn() {
   const router = useRouter();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [accessCode, setAccessCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -17,22 +17,25 @@ export default function SignIn() {
     setError('');
     
     try {
+      console.log('SignIn - Attempting sign in with:', { email });
       const result = await signIn('credentials', {
         email,
-        password,
+        password: accessCode,
         redirect: false,
         callbackUrl: '/dashboard'
       });
       
+      console.log('SignIn - Result:', result);
+
       if (!result?.ok) {
-        setError('Invalid access code');
+        setError(result?.error || 'Invalid access code or email');
         return;
       }
 
       router.push('/dashboard');
     } catch (error) {
-      console.error('Sign in error:', error);
-      setError('An error occurred while signing in');
+      console.error('SignIn - Error:', error);
+      setError('An error occurred while signing in. Please check the console for details.');
     } finally {
       setIsLoading(false);
     }
@@ -53,7 +56,7 @@ export default function SignIn() {
             Welcome to Lumeo
           </h2>
           <p className="text-text-secondary mb-8">
-            Enter your email and password to continue
+            Enter your email and access code to continue
           </p>
         </div>
 
@@ -75,18 +78,18 @@ export default function SignIn() {
               />
             </div>
             <div>
-              <label htmlFor="password" className="sr-only">
-                Password
+              <label htmlFor="accessCode" className="sr-only">
+                Access Code
               </label>
               <input
-                id="password"
-                name="password"
+                id="accessCode"
+                name="accessCode"
                 type="password"
                 required
                 className="appearance-none rounded-[8px] relative block w-full px-4 py-2.5 border border-[#2C2C2E] focus:border-brand-primary/20 focus:ring-1 focus:ring-brand-primary/20 bg-dark-surface text-text-primary placeholder:text-text-tertiary"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Access Code"
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value)}
               />
             </div>
           </div>

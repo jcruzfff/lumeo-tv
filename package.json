@@ -8,7 +8,6 @@
     "start": "next start",
     "lint": "next lint",
     "reset-db": "tsx scripts/reset-db.ts",
-    "create-admin": "tsx scripts/create-admin.ts",
     "check-ended-events": "tsx scripts/check-ended-events.ts"
   },
   "dependencies": {
@@ -52,8 +51,5 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
   }
 }

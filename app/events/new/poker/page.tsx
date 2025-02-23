@@ -8,10 +8,10 @@ import MediaSelectionStep from './components/MediaSelectionStep';
 import DisplaySettingsStep from './components/DisplaySettingsStep';
 import ReviewSubmitStep from './components/ReviewSubmitStep';
 import { BlindLevel, MediaItem } from '@/app/types';
-import { useRouter } from 'next/navigation';
 import { useTimer } from '@/app/contexts/TimerContext';
 import { useMedia } from '@/app/contexts/MediaContext';
 import { usePokerRoom } from '@/app/contexts/PokerRoomContext';
+import { useRouter } from 'next/navigation';
 
 const steps = [
   { id: 1, name: 'Set Blind Levels', href: '#' },
@@ -50,10 +50,10 @@ export default function NewPokerEvent() {
     }
   });
 
-  const router = useRouter();
   const { setActiveTimer, setPokerState } = useTimer();
   const { storeMediaItems } = useMedia();
-  const { setState: setPokerRoomState } = usePokerRoom();
+  const { setState } = usePokerRoom();
+  const router = useRouter();
 
   const handleBlindLevelsComplete = (blindLevels: BlindLevel[]) => {
     setEventData({ ...eventData, blindLevels });
@@ -103,101 +103,143 @@ export default function NewPokerEvent() {
 
   const handleLaunchLumeo = async () => {
     try {
-      if (!eventData.blindLevels || eventData.blindLevels.length === 0) {
-        throw new Error('Blind levels not configured');
+      if (!eventData.blindLevels) {
+        throw new Error('Blind levels must be configured');
       }
 
-      // Create the initial poker state
+      // Create initial poker state
       const pokerSettings = {
-        isRunning: true,
+        isRunning: true, // Start timer automatically
         currentLevel: 0,
-        timeRemaining: eventData.blindLevels[0].duration * 60, // Convert minutes to seconds
+        timeRemaining: eventData.blindLevels[0].duration * 60,
         levels: eventData.blindLevels,
         breakDuration: 0,
         totalPlayTime: eventData.blindLevels.reduce((total, level) => total + level.duration, 0)
       };
 
-      console.log('Creating poker event with settings:', pokerSettings);
+      console.log('[Launch] Creating poker event with settings:', {
+        eventName,
+        type: 'POKER',
+        settings: pokerSettings,
+        mediaItemsCount: eventData.mediaItems?.length,
+        roomManagement: eventData.roomManagement
+      });
 
-      // Create the event in the database
+      // Create event in database
       const response = await fetch('/api/events', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           name: eventName,
           type: 'POKER',
           status: 'ACTIVE',
-          startedAt: new Date().toISOString(),
           settings: pokerSettings,
           mediaItems: eventData.mediaItems || [],
-          roomManagement: eventData.roomManagement || {
-            isRoomManagementEnabled: false,
-            showWaitlistOnDisplay: false
-          }
-        }),
+          displaySettings: eventData.displaySettings,
+          roomManagement: eventData.roomManagement,
+          startedAt: new Date().toISOString()
+        })
       });
 
       if (!response.ok) {
-        const responseData = await response.json();
-        throw new Error(responseData.error || 'Failed to create event');
+        throw new Error('Failed to create event');
       }
 
-      const event = await response.json();
-      console.log('Event created:', event);
+      const createdEvent = await response.json();
+      console.log('[Launch] Event created successfully:', createdEvent);
 
-      // Update timer state
-      setPokerState(pokerSettings);
-      setActiveTimer('poker');
+      // Store event ID
+      localStorage.setItem('activeEventId', createdEvent.id);
 
-      // Store media items
-      if (eventData.mediaItems) {
-        storeMediaItems(eventData.mediaItems);
+      // Store display settings
+      console.log('[Launch] Storing display settings');
+      const defaultDisplaySettings = {
+        aspectRatio: '16:9',
+        timerPosition: 'top-right',
+        mediaInterval: 15,
+        showTimer: true,
+        theme: 'dark',
+        customColors: {
+          timerText: '#FFFFFF',
+          timerBackground: '#000000',
+        }
+      };
+      const displaySettings = eventData.displaySettings 
+        ? { 
+            ...defaultDisplaySettings, 
+            ...eventData.displaySettings,
+            customColors: {
+              ...defaultDisplaySettings.customColors,
+              ...(eventData.displaySettings.customColors || {})
+            }
+          }
+        : defaultDisplaySettings;
+      
+      console.log('[Launch] Final display settings:', displaySettings);
+      localStorage.setItem('displaySettings', JSON.stringify(displaySettings));
+
+      // Store media items if available
+      const mediaItems = eventData.mediaItems || [];
+      if (mediaItems.length > 0) {
+        console.log('[Launch] Storing media items:', mediaItems.length);
+        storeMediaItems(mediaItems);
         localStorage.setItem('mediaState', JSON.stringify({
-          mediaItems: eventData.mediaItems,
+          mediaItems,
           currentMediaIndex: 0,
         }));
       }
 
-      // Store display settings
-      if (eventData.displaySettings) {
-        localStorage.setItem('displaySettings', JSON.stringify(eventData.displaySettings));
-      }
-
-      // Store room management state if enabled
+      // Store room management settings if enabled
       if (eventData.roomManagement?.isRoomManagementEnabled) {
-        // Get existing poker room state
-        const existingState = localStorage.getItem('pokerRoomState');
-        const parsedExistingState = existingState ? JSON.parse(existingState) : null;
-        
-        setPokerRoomState({
-          tables: parsedExistingState?.tables || [],
-          waitingList: parsedExistingState?.waitingList || [], // Preserve existing waitlist
+        console.log('[Launch] Initializing room management state');
+        setState({
+          tables: [],
+          waitingList: [],
           showRoomInfo: true,
           isRoomManagementEnabled: eventData.roomManagement.isRoomManagementEnabled,
           showWaitlistOnDisplay: eventData.roomManagement.showWaitlistOnDisplay
         });
+        localStorage.setItem('pokerRoomState', JSON.stringify({
+          tables: [],
+          waitingList: [],
+          showRoomInfo: true,
+          isRoomManagementEnabled: eventData.roomManagement.isRoomManagementEnabled,
+          showWaitlistOnDisplay: eventData.roomManagement.showWaitlistOnDisplay
+        }));
       }
 
-      // Store the event ID
-      localStorage.setItem('activeEventId', event.id);
+      // Update timer state with isRunning set to true
+      console.log('[Launch] Updating timer state');
+      setPokerState(pokerSettings);
+      setActiveTimer('poker');
 
-      // Get the actual host URL and open display in new window
-      const protocol = window.location.protocol;
-      const host = window.location.host;
-      const displayUrl = `${protocol}//${host}/display`;
-      window.open(displayUrl, '_blank');
+      // Store timer state in localStorage
+      localStorage.setItem('timerState', JSON.stringify({
+        activeTimer: 'poker',
+        pokerState: pokerSettings
+      }));
 
-      // Navigate to active events
+      // Open display window
+      if (createdEvent.displayUrl) {
+        console.log('[Launch] Opening display window');
+        const displayWindow = window.open(createdEvent.displayUrl, 'lumeo-display', 'width=1920,height=1080');
+        if (!displayWindow) {
+          console.error('[Launch] Failed to open display window - popup may be blocked');
+          alert('Please allow popups to open the display window');
+        } else {
+          displayWindow.focus();
+        }
+      }
+
+      // Navigate admin to active events page
+      console.log('[Launch] Navigating to active events page');
       router.push('/events/active');
+
     } catch (error) {
-      console.error('Error launching display:', error);
-      if (error instanceof Error) {
-        alert(`Failed to launch display: ${error.message}`);
-      } else {
-        alert('Failed to launch display. Please try again.');
-      }
+      console.error('[Launch] Error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to launch event');
     }
   };
 

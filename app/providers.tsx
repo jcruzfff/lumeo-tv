@@ -10,7 +10,7 @@ import { usePathname } from 'next/navigation';
 export function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLandingPage = pathname === '/';
-  const isDisplayPage = pathname === '/display';
+  const isDisplayPage = pathname.startsWith('/display/');
   const isAuthPage = pathname.startsWith('/auth');
 
   // Don't show sidebar on landing, display, or auth pages

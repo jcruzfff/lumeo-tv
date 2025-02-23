@@ -1,103 +1,127 @@
-import { prisma } from '@/app/lib/db'
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/auth.config'
 
 export const dynamic = 'force-dynamic'
 export const dynamicParams = true
 
-export async function GET(
-  request: Request,
-  { params }: { params: { eventId: string } }
-) {
-  const { eventId } = params
-  console.log('GET request received for eventId:', eventId)
-  
+interface RouteParams {
+  params: {
+    eventId: string;
+  };
+}
+
+export async function GET(request: Request, { params }: RouteParams) {
   try {
+    const { eventId } = params;
+    console.log('GET request received for eventId:', eventId)
+    
     const session = await getServerSession(authOptions)
     console.log('Session state:', session ? 'Authenticated' : 'Unauthenticated')
 
     if (!session) {
       console.log('Unauthorized access attempt')
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-      })
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     const event = await prisma.event.findUnique({
-      where: { id: eventId },
+      where: {
+        id: eventId
+      },
       include: {
         mediaItems: true,
         tables: true,
         waitingList: {
           orderBy: {
-            position: 'asc',
-          },
-        },
-      },
-    })
+            position: 'asc'
+          }
+        }
+      }
+    });
 
     if (!event) {
-      return new Response(JSON.stringify({ error: 'Event not found' }), {
-        status: 404,
-      })
+      return NextResponse.json(
+        { error: 'Event not found' },
+        { status: 404 }
+      );
     }
 
-    return new Response(JSON.stringify(event))
+    return NextResponse.json(event);
   } catch (error) {
-    console.error('Error in GET /api/events/[eventId]:', error)
-    return new Response(JSON.stringify({ error: 'Error fetching event' }), {
-      status: 500,
-    })
+    console.error('Error fetching event:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch event' },
+      { status: 500 }
+    );
   }
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { eventId: string } }
-) {
+export async function PATCH(request: Request, { params }: RouteParams) {
   try {
+    const { eventId } = params;
+    const data = await request.json();
+
     const session = await getServerSession(authOptions)
     if (!session) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-      })
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    const { status, settings } = await request.json()
-    
-    // Validate the event exists
     const event = await prisma.event.findUnique({
-      where: { id: params.eventId },
-    })
+      where: {
+        id: eventId
+      },
+      include: {
+        mediaItems: true,
+        tables: true,
+        waitingList: {
+          orderBy: {
+            position: 'asc'
+          }
+        }
+      }
+    });
 
     if (!event) {
-      return new Response(JSON.stringify({ error: 'Event not found' }), {
-        status: 404,
-      })
+      return NextResponse.json(
+        { error: 'Event not found' },
+        { status: 404 }
+      );
     }
 
-    // Update the event
     const updatedEvent = await prisma.event.update({
-      where: { id: params.eventId },
-      data: {
-        status,
-        settings: {
-          ...settings,
-          // Ensure period is within bounds
-          period: Math.min(settings.period || 1, settings.totalPeriods || 4),
-          // Default to 4 periods if not specified
-          totalPeriods: settings.totalPeriods || 4
-        },
-        ...(status === 'ENDED' ? { endedAt: new Date() } : {}),
+      where: {
+        id: eventId
       },
-    })
+      data: {
+        status: data.status,
+        settings: data.settings,
+        endedAt: data.status === 'ENDED' ? new Date() : undefined
+      },
+      include: {
+        mediaItems: true,
+        tables: true,
+        waitingList: {
+          orderBy: {
+            position: 'asc'
+          }
+        }
+      }
+    });
 
-    return new Response(JSON.stringify(updatedEvent))
+    return NextResponse.json(updatedEvent);
   } catch (error) {
-    console.error('Error updating event:', error)
-    return new Response(JSON.stringify({ error: 'Failed to update event' }), {
-      status: 500,
-    })
+    console.error('Error updating event:', error);
+    return NextResponse.json(
+      { error: 'Failed to update event' },
+      { status: 500 }
+    );
   }
 }
 
@@ -106,22 +130,47 @@ export async function DELETE(
   { params }: { params: { eventId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-      })
-    }
+    console.log('Attempting to delete event:', params.eventId);
 
-    await prisma.event.delete({
-      where: { id: params.eventId },
-    })
+    // Delete all related records first
+    await prisma.$transaction([
+      // Delete media items
+      prisma.mediaItem.deleteMany({
+        where: { eventId: params.eventId },
+      }),
+      // Delete tables
+      prisma.table.deleteMany({
+        where: { eventId: params.eventId },
+      }),
+      // Delete waiting list entries
+      prisma.player.deleteMany({
+        where: { eventId: params.eventId },
+      }),
+      // Finally delete the event
+      prisma.event.delete({
+        where: { id: params.eventId },
+      }),
+    ]);
 
-    return new Response(JSON.stringify({ success: true }))
+    console.log('Event and related records deleted successfully');
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
   } catch (error) {
-    console.error('Error deleting event:', error)
-    return new Response(JSON.stringify({ error: 'Failed to delete event' }), {
-      status: 500,
-    })
+    console.error('Error deleting event:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: 'Failed to delete event',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
   }
 } 

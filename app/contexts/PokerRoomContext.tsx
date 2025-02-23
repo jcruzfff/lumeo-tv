@@ -8,7 +8,7 @@ export interface Player {
   name: string;
 }
 
-interface PokerRoomState {
+export interface PokerRoomState {
   tables: { id: number; seats: (Player | null)[] }[];
   waitingList: Player[];
   showRoomInfo: boolean;

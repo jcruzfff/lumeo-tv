@@ -23,90 +23,137 @@ export default function Display() {
   const [error, setError] = useState<string | null>(null);
   const [currentGameTime, setCurrentGameTime] = useState(0);
 
-  // Add debug logs for waitlist state
+  // Enhanced debug logging
   useEffect(() => {
-    console.log('Display Page State:', {
-      waitingList,
-      isRoomManagementEnabled,
-      showWaitlistOnDisplay,
+    console.log('[Display] Component State:', {
+      isClient,
+      isFullscreen,
       isTimerPage,
-      activeTimer
+      isLoading,
+      error,
+      activeTimer,
+      mediaItemsCount: mediaItems.length,
+      currentMediaIndex,
+      waitingListCount: waitingList?.length,
+      isRoomManagementEnabled,
+      showWaitlistOnDisplay
     });
-  }, [waitingList, isRoomManagementEnabled, showWaitlistOnDisplay, isTimerPage, activeTimer]);
+  }, [
+    isClient,
+    isFullscreen,
+    isTimerPage,
+    isLoading,
+    error,
+    activeTimer,
+    mediaItems.length,
+    currentMediaIndex,
+    waitingList,
+    isRoomManagementEnabled,
+    showWaitlistOnDisplay
+  ]);
 
-  // Set isClient to true once component mounts
+  // Set isClient to true once component mounts and request fullscreen
   useEffect(() => {
+    console.log('[Display] Component mounted, requesting fullscreen');
     setIsClient(true);
+    // Request fullscreen on mount
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen()
+        .then(() => {
+          console.log('[Display] Fullscreen mode enabled');
+          setIsFullscreen(true);
+        })
+        .catch((err) => console.error('[Display] Error enabling fullscreen:', err));
+    }
   }, []);
 
-  // Load media items from localStorage first, then fetch event data
+  // Load event data and initialize display
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient) {
+      console.log('[Display] Skipping event load - client not ready');
+      return;
+    }
 
-    const loadMediaAndEventData = async () => {
+    const loadEventData = async () => {
       try {
-        // Try to load media items from localStorage first
-        const savedMediaState = localStorage.getItem('mediaState');
-        if (savedMediaState) {
-          const { mediaItems: savedMediaItems, currentMediaIndex: savedIndex } = JSON.parse(savedMediaState);
-          console.log('Display - Loading media state:', { 
-            mediaItems: savedMediaItems, 
-            currentIndex: savedIndex,
-            totalItems: savedMediaItems.length 
-          });
-          setMediaItems(savedMediaItems);
-          setCurrentMediaIndex(savedIndex || 0);
+        // Get event ID from URL
+        const pathParts = window.location.pathname.split('/');
+        const eventId = pathParts[2];
+        console.log('[Display] Loading event data:', { eventId, pathParts });
+
+        if (!eventId) {
+          console.error('[Display] No event ID found in URL');
+          setError('No event ID found');
+          return;
         }
 
-        // Load poker room state from localStorage if available
-        const savedPokerRoomState = localStorage.getItem('pokerRoomState');
-        console.log('Loaded poker room state from localStorage:', savedPokerRoomState);
-        
-        if (savedPokerRoomState) {
-          const pokerRoomState = JSON.parse(savedPokerRoomState);
-          console.log('Parsed poker room state:', pokerRoomState);
-          // Ensure room management settings are properly initialized
-          const updatedState = {
-            ...pokerRoomState,
-            isRoomManagementEnabled: true,
-            showWaitlistOnDisplay: true
-          };
-          console.log('Setting poker room state to:', updatedState);
-          setPokerRoomState(updatedState);
-        } else {
-          console.log('No saved poker room state found, initializing with defaults');
-          // Initialize poker room state if not present
-          const initialState = {
-            tables: [],
-            waitingList: [],
+        // Store the event ID
+        localStorage.setItem('activeEventId', eventId);
+        console.log('[Display] Stored event ID in localStorage:', eventId);
+
+        // Fetch event data
+        console.log('[Display] Fetching event data from API');
+        const response = await fetch(`/api/events/${eventId}`);
+        console.log('[Display] Event fetch response:', {
+          status: response.status,
+          ok: response.ok
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch event');
+        }
+        const event = await response.json();
+        console.log('[Display] Event data received:', {
+          id: event.id,
+          type: event.type,
+          status: event.status,
+          mediaItemsCount: event.mediaItems?.length,
+          hasPokerSettings: !!event.settings?.levels,
+          hasBasketballSettings: !!event.settings?.gameTime
+        });
+
+        // Initialize state based on event type
+        if (event.type === 'POKER') {
+          console.log('[Display] Initializing poker state');
+          setActiveTimer('poker');
+          setPokerState(event.settings);
+        } else if (event.type === 'BASKETBALL') {
+          console.log('[Display] Initializing basketball state');
+          setActiveTimer('basketball');
+          setBasketballState(event.settings);
+        }
+
+        // Load media items
+        if (event.mediaItems?.length > 0) {
+          console.log('[Display] Loading media items:', event.mediaItems.length);
+          setMediaItems(event.mediaItems);
+        }
+
+        // Load room management state for poker events
+        if (event.type === 'POKER') {
+          console.log('[Display] Setting up poker room state:', {
+            tablesCount: event.tables?.length,
+            waitingListCount: event.waitingList?.length
+          });
+          setPokerRoomState({
+            tables: event.tables || [],
+            waitingList: event.waitingList || [],
             showRoomInfo: true,
             isRoomManagementEnabled: true,
             showWaitlistOnDisplay: true
-          };
-          setPokerRoomState(initialState);
-          localStorage.setItem('pokerRoomState', JSON.stringify(initialState));
-        }
-
-        // Load display settings
-        const savedDisplaySettings = localStorage.getItem('displaySettings');
-        if (savedDisplaySettings) {
-          const settings = JSON.parse(savedDisplaySettings);
-          console.log('Display - Media interval settings:', { 
-            interval: settings.mediaInterval,
-            showTimer: settings.showTimer
           });
         }
 
         setIsLoading(false);
       } catch (error) {
-        console.error('Error loading data:', error);
-        setError('Failed to load data');
+        console.error('[Display] Error loading event:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load event');
         setIsLoading(false);
       }
     };
 
-    loadMediaAndEventData();
-  }, [isClient, setMediaItems, setPokerRoomState, setCurrentMediaIndex]);
+    loadEventData();
+  }, [isClient, setActiveTimer, setPokerState, setBasketballState, setMediaItems, setPokerRoomState]);
 
   // Media cycling effect
   useEffect(() => {
@@ -506,6 +553,7 @@ export default function Display() {
   }, [isClient, setActiveTimer, setPokerState]);
 
   if (!isClient || isLoading) {
+    console.log('[Display] Rendering loading state:', { isClient, isLoading });
     return (
       <div className="min-h-screen flex items-center justify-center bg-black text-white">
         <div className="text-center">
@@ -517,6 +565,13 @@ export default function Display() {
   }
 
   if (error || !activeTimer || (!pokerState && !basketballState && !customTimerState)) {
+    console.error('[Display] Rendering error state:', {
+      error,
+      activeTimer,
+      hasPokerState: !!pokerState,
+      hasBasketballState: !!basketballState,
+      hasCustomTimerState: !!customTimerState
+    });
     return (
       <div className="min-h-screen flex items-center justify-center bg-dark-background text-text-primary">
         <div className="text-center">

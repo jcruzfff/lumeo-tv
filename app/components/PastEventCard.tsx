@@ -28,18 +28,27 @@ export default function PastEventCard({
   onDelete
 }: PastEventProps) {
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this event? This action cannot be undone.')) return;
-    
     try {
+      console.log('Attempting to delete event:', id);
       const response = await fetch(`/api/events/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
 
-      if (!response.ok) throw new Error('Failed to delete event');
+      console.log('Delete response status:', response.status);
       
-      onDelete(id);
+      if (response.ok) {
+        console.log('Event deleted successfully');
+        onDelete(id);
+      } else {
+        const errorData = await response.json();
+        console.error('Delete failed:', errorData);
+        throw new Error('Failed to delete event');
+      }
     } catch (error) {
-      console.error('Error deleting event:', error);
+      console.error('Error during deletion:', error);
       alert('Failed to delete event. Please try again.');
     }
   };
@@ -52,7 +61,11 @@ export default function PastEventCard({
           <p className="text-sm text-text-secondary">{status}</p>
         </div>
         <button
-          onClick={handleDelete}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDelete();
+          }}
           className="p-2 text-text-tertiary hover:text-status-error transition-colors rounded-lg hover:bg-dark-surface"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

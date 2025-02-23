@@ -10,10 +10,11 @@ export async function middleware(req: NextRequest) {
   const isSignInPage = req.nextUrl.pathname === '/auth/signin';
   const isLandingPage = req.nextUrl.pathname === '/';
   const isDisplayPage = req.nextUrl.pathname.startsWith('/display');
+  const isDisplayApiRoute = req.nextUrl.pathname.startsWith('/api/events') && req.nextUrl.referrer?.includes('/display');
   const isDashboardPage = req.nextUrl.pathname.startsWith('/dashboard');
 
-  // Allow access to the landing page and display page
-  if (isLandingPage || isDisplayPage) {
+  // Allow access to the landing page, display page, and display API routes
+  if (isLandingPage || isDisplayPage || isDisplayApiRoute) {
     return NextResponse.next();
   }
 
@@ -48,6 +49,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 
+  // Allow access to all other routes
   return NextResponse.next();
 }
 
@@ -58,6 +60,8 @@ export const config = {
     '/events/:path*',
     // Auth routes
     '/auth/:path*',
+    // API routes
+    '/api/:path*',
     // Exclude static files and favicon
     '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
