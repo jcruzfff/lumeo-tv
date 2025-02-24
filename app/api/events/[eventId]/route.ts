@@ -259,12 +259,16 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     return NextResponse.json(updatedEvent);
   } catch (error) {
-    console.error('[API] Error updating event:', error);
+    // Log the error details for debugging
+    if (error instanceof Error) {
+      console.error('[API] Error updating event:', error.message);
+    } else {
+      console.error('[API] Error updating event:', error);
+    }
+
+    // Return a properly formatted error response
     return NextResponse.json(
-      { 
-        error: 'Failed to update event',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { error: 'Failed to update event' },
       { status: 500 }
     );
   }

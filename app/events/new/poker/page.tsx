@@ -290,8 +290,10 @@ export default function NewPokerEvent() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          displaySettings,
-          settings: eventData.settings // Include current event settings
+          settings: {
+            ...(eventData.settings || {}),
+            display: displaySettings
+          }
         })
       });
 
@@ -304,7 +306,7 @@ export default function NewPokerEvent() {
       console.log('[Display] Settings updated successfully');
     } catch (error) {
       console.error('Error updating display settings:', error);
-      throw error; // Re-throw to handle in the UI
+      throw error;
     }
   };
 
@@ -351,6 +353,15 @@ export default function NewPokerEvent() {
       const pokerRoomState = localStorage.getItem('pokerRoomState');
       console.log('[SaveEvent] Current poker room state from localStorage:', pokerRoomState ? JSON.parse(pokerRoomState) : null);
 
+      // Get tables and waitlist from poker room state
+      const roomState = pokerRoomState ? JSON.parse(pokerRoomState) : { tables: [], waitingList: [] };
+      console.log('[SaveEvent] Room state to be saved:', roomState);
+
+      // Validate poker settings
+      if (!Array.isArray(eventData.blindLevels)) {
+        throw new Error('Invalid blind levels format');
+      }
+
       // Create poker settings with timer initially stopped
       const pokerSettings = {
         isRunning: false,
@@ -363,11 +374,31 @@ export default function NewPokerEvent() {
         timeRemaining: eventData.blindLevels[0].duration * 60,
         breakDuration: 0,
         totalPlayTime: 0,
+        isRoomManagementEnabled: eventData.roomManagement?.isRoomManagementEnabled ?? false,
+        showWaitlistOnDisplay: eventData.roomManagement?.showWaitlistOnDisplay ?? false,
+        display: eventData.displaySettings || {
+          aspectRatio: '16:9',
+          timerPosition: 'top-right',
+          mediaInterval: 15,
+          showTimer: true,
+          theme: 'dark',
+          customColors: {
+            timerText: '#FFFFFF',
+            timerBackground: '#000000',
+          },
+        }
       };
 
-      // Get tables and waitlist from poker room state
-      const roomState = pokerRoomState ? JSON.parse(pokerRoomState) : { tables: [], waitingList: [] };
-      console.log('[SaveEvent] Room state to be saved:', roomState);
+      // Prepare request payload
+      const payload = {
+        status: 'SCHEDULED',
+        settings: pokerSettings,
+        tables: roomState.tables || [],
+        waitingList: roomState.waitingList || [],
+        mediaItems: eventData.mediaItems || [],
+      };
+
+      console.log('[SaveEvent] Sending payload:', payload);
 
       // Save event with SCHEDULED status
       const response = await fetch(`/api/events/${eventId}`, {
@@ -375,28 +406,13 @@ export default function NewPokerEvent() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          status: 'SCHEDULED',
-          settings: pokerSettings,
-          displaySettings: eventData.displaySettings || {
-            aspectRatio: '16:9',
-            timerPosition: 'top-right',
-            mediaInterval: 15,
-            showTimer: true,
-            theme: 'dark',
-            customColors: {
-              timerText: '#FFFFFF',
-              timerBackground: '#000000',
-            },
-          },
-          tables: roomState.tables || [],
-          waitingList: roomState.waitingList || [],
-          mediaItems: eventData.mediaItems || [],
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save event');
+        const errorData = await response.json();
+        console.error('[SaveEvent] API error:', errorData);
+        throw new Error(errorData.error || 'Failed to save event');
       }
 
       const savedEvent = await response.json();

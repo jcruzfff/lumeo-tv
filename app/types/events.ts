@@ -130,45 +130,74 @@ export interface Event {
 }
 
 // Type guard to check if settings are PokerSettings
-export function isPokerSettings(settings: any): settings is PokerSettings {
+export function isPokerSettings(settings: unknown): settings is PokerSettings {
   return settings && 
-    typeof settings.isRunning === 'boolean' &&
-    typeof settings.currentLevel === 'number' &&
-    Array.isArray(settings.levels);
+    typeof settings === 'object' &&
+    settings !== null &&
+    'isRunning' in settings &&
+    typeof (settings as PokerSettings).isRunning === 'boolean' &&
+    'currentLevel' in settings &&
+    typeof (settings as PokerSettings).currentLevel === 'number' &&
+    'levels' in settings &&
+    Array.isArray((settings as PokerSettings).levels);
 }
 
 // Type guard to check if settings are BasketballSettings
-export function isBasketballSettings(settings: any): settings is BasketballSettings {
+export function isBasketballSettings(settings: unknown): settings is BasketballSettings {
   return settings && 
-    typeof settings.isRunning === 'boolean' &&
-    typeof settings.gameTime === 'number' &&
-    typeof settings.period === 'number';
+    typeof settings === 'object' &&
+    settings !== null &&
+    'isRunning' in settings &&
+    typeof (settings as BasketballSettings).isRunning === 'boolean' &&
+    'gameTime' in settings &&
+    typeof (settings as BasketballSettings).gameTime === 'number' &&
+    'period' in settings &&
+    typeof (settings as BasketballSettings).period === 'number';
 }
 
 // Type guard to check if settings are CustomSettings
-export function isCustomSettings(settings: any): settings is CustomSettings {
+export function isCustomSettings(settings: unknown): settings is CustomSettings {
   return settings && 
-    typeof settings.isRunning === 'boolean' &&
-    typeof settings.timeRemaining === 'number';
+    typeof settings === 'object' &&
+    settings !== null &&
+    'isRunning' in settings &&
+    typeof (settings as CustomSettings).isRunning === 'boolean' &&
+    'timeRemaining' in settings &&
+    typeof (settings as CustomSettings).timeRemaining === 'number';
 }
 
 // Type guard for Player
-export function isPlayer(obj: any): obj is Player {
+export function isPlayer(obj: unknown): obj is Player {
   return obj &&
-    typeof obj.id === 'string' &&
-    typeof obj.eventId === 'string' &&
-    typeof obj.name === 'string' &&
-    typeof obj.position === 'number' &&
-    typeof obj.addedAt === 'string';
+    typeof obj === 'object' &&
+    obj !== null &&
+    'id' in obj &&
+    typeof (obj as Player).id === 'string' &&
+    'eventId' in obj &&
+    typeof (obj as Player).eventId === 'string' &&
+    'name' in obj &&
+    typeof (obj as Player).name === 'string' &&
+    'position' in obj &&
+    typeof (obj as Player).position === 'number' &&
+    'addedAt' in obj &&
+    typeof (obj as Player).addedAt === 'string';
 }
 
 // Type guard for Seat
-export function isSeat(obj: any): obj is Seat {
+export function isSeat(obj: unknown): obj is Seat {
   return obj &&
-    typeof obj.id === 'string' &&
-    typeof obj.tableId === 'string' &&
-    typeof obj.position === 'number' &&
-    (obj.playerId === null || typeof obj.playerId === 'string') &&
-    (obj.playerName === null || typeof obj.playerName === 'string') &&
-    typeof obj.createdAt === 'string';
+    typeof obj === 'object' &&
+    obj !== null &&
+    'id' in obj &&
+    typeof (obj as Seat).id === 'string' &&
+    'tableId' in obj &&
+    typeof (obj as Seat).tableId === 'string' &&
+    'position' in obj &&
+    typeof (obj as Seat).position === 'number' &&
+    'playerId' in obj &&
+    ((obj as Seat).playerId === null || typeof (obj as Seat).playerId === 'string') &&
+    'playerName' in obj &&
+    ((obj as Seat).playerName === null || typeof (obj as Seat).playerName === 'string') &&
+    'createdAt' in obj &&
+    typeof (obj as Seat).createdAt === 'string';
 } 

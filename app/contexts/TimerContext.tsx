@@ -15,15 +15,10 @@ interface TimerContextType {
   updateBasketballScore: (homeScore: number, awayScore: number) => void;
 }
 
-interface TimerPersistentState {
-  startTime: number;
-  initialGameTime: number;
-  isRunning: boolean;
-  period: number;
-  totalPeriods?: number;
-}
-
 const TimerContext = createContext<TimerContextType | undefined>(undefined);
+
+// Set to true only when debugging timer issues
+const DEBUG_TIMER = false;
 
 export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [activeTimer, setActiveTimer] = useState<'poker' | 'basketball' | 'custom' | null>(null);
@@ -98,10 +93,17 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             
             const newTimeRemaining = Math.max(0, prev.timeRemaining - deltaSeconds);
             
+            if (DEBUG_TIMER) {
+              console.log(`Poker timer update: ${newTimeRemaining}s remaining`);
+            }
+            
             if (newTimeRemaining <= 0) {
               if (prev.currentLevel < prev.levels.length - 1) {
                 // Move to next level
                 const nextLevel = prev.currentLevel + 1;
+                if (DEBUG_TIMER) {
+                  console.log(`Moving to level ${nextLevel + 1}`);
+                }
                 return {
                   ...prev,
                   currentLevel: nextLevel,
@@ -109,6 +111,9 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
                 };
               } else {
                 // End of tournament
+                if (DEBUG_TIMER) {
+                  console.log('Tournament ended');
+                }
                 return { ...prev, isRunning: false, timeRemaining: 0 };
               }
             }
@@ -125,7 +130,10 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             bc.postMessage({ type: 'TIMER_UPDATE' });
             bc.close();
           } catch (error) {
-            console.error('Error broadcasting timer update:', error);
+            // Only log broadcast errors if they're not about BroadcastChannel being undefined
+            if (!(error instanceof ReferenceError)) {
+              console.error('Error broadcasting timer update:', error);
+            }
           }
         }
         
@@ -136,6 +144,10 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             const persistentState = JSON.parse(persistentStateStr);
             const elapsedSeconds = Math.floor((now - persistentState.startTime) / 1000);
             const newGameTime = Math.max(0, persistentState.initialGameTime - elapsedSeconds);
+
+            if (DEBUG_TIMER) {
+              console.log(`Basketball timer update: ${newGameTime}s remaining`);
+            }
 
             setBasketballStateInternal(prev => {
               if (!prev || !prev.isRunning) return prev;
@@ -150,6 +162,10 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
                   };
                   localStorage.setItem('timerPersistentState', JSON.stringify(newPeriodState));
 
+                  if (DEBUG_TIMER) {
+                    console.log(`Starting period ${prev.period + 1}`);
+                  }
+
                   return {
                     ...prev,
                     isRunning: false,
@@ -158,6 +174,9 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
                   };
                 } else {
                   // End of game
+                  if (DEBUG_TIMER) {
+                    console.log('Game ended');
+                  }
                   return { ...prev, isRunning: false, gameTime: 0 };
                 }
               }
@@ -176,20 +195,28 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             if (!prev) return null;
             
             if (prev.timeRemaining <= 0) {
+              if (DEBUG_TIMER) {
+                console.log('Custom timer ended');
+              }
               return { ...prev, isRunning: false };
+            }
+
+            const newTimeRemaining = Math.max(0, prev.timeRemaining - deltaSeconds);
+            if (DEBUG_TIMER) {
+              console.log(`Custom timer update: ${newTimeRemaining}s remaining`);
             }
 
             return {
               ...prev,
-              timeRemaining: Math.max(0, prev.timeRemaining - deltaSeconds),
+              timeRemaining: newTimeRemaining,
             };
           });
         }
       }
-    }, 100); // Check more frequently for accuracy
+    }, 500); // Reduced polling frequency from 100ms to 500ms
 
     return () => clearInterval(interval);
-  }, [isClient, activeTimer, pokerState?.isRunning]);
+  }, [isClient, activeTimer, pokerState?.isRunning, basketballState?.isRunning, customTimerState?.isRunning]);
 
   const setBasketballState = useCallback((newState: BasketballTimerState | ((prev: BasketballTimerState) => BasketballTimerState)) => {
     setBasketballStateInternal(prev => {

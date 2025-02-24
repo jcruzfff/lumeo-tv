@@ -15,8 +15,6 @@ export async function POST(request: Request, { params }: RouteParams) {
     const { eventId, tableId, seatIndex } = params;
     const { playerId } = await request.json();
 
-    console.log('[Seats API] Assigning player to seat:', { eventId, tableId, seatIndex, playerId });
-
     // Get the table
     const table = await prisma.table.findUnique({
       where: { id: tableId },
@@ -28,7 +26,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     // Update the seat
-    const updatedSeat = await prisma.seat.update({
+    await prisma.seat.update({
       where: {
         id: table.seats[parseInt(seatIndex)].id
       },
@@ -56,13 +54,12 @@ export async function POST(request: Request, { params }: RouteParams) {
       })
     ]);
 
-    console.log('[Seats API] Successfully assigned player');
     return NextResponse.json({ 
       tables: updatedTables,
       waitingList: updatedWaitingList
     });
   } catch (error) {
-    console.error('[Seats API] Error assigning player:', error);
+    console.error('Error assigning player:', error);
     return NextResponse.json(
       { error: 'Failed to assign player to seat' },
       { status: 500 }
@@ -75,8 +72,6 @@ export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const { eventId, tableId, seatIndex } = params;
 
-    console.log('[Seats API] Removing player from seat:', { eventId, tableId, seatIndex });
-
     // Get the table
     const table = await prisma.table.findUnique({
       where: { id: tableId },
@@ -88,7 +83,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     // Update the seat
-    const updatedSeat = await prisma.seat.update({
+    await prisma.seat.update({
       where: {
         id: table.seats[parseInt(seatIndex)].id
       },
@@ -105,7 +100,6 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       orderBy: { createdAt: 'asc' }
     });
 
-    console.log('[Seats API] Successfully removed player');
     return NextResponse.json({ 
       tables: updatedTables,
       waitingList: await prisma.player.findMany({
@@ -114,7 +108,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       })
     });
   } catch (error) {
-    console.error('[Seats API] Error removing player:', error);
+    console.error('Error removing player:', error);
     return NextResponse.json(
       { error: 'Failed to remove player from seat' },
       { status: 500 }

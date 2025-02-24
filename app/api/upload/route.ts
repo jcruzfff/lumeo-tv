@@ -7,6 +7,12 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const dynamic = 'force-dynamic';
 
+interface UploadedFile {
+  name: string;
+  type: string;
+  arrayBuffer(): Promise<ArrayBuffer>;
+}
+
 export async function POST(request: Request) {
   try {
     // Check authentication
@@ -24,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     const uploadedFiles = await Promise.all(
-      files.map(async (file: any) => {
+      files.map(async (file: UploadedFile) => {
         // Generate a unique filename
         const uniqueId = uuidv4();
         const originalName = file.name;
@@ -46,7 +52,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(uploadedFiles);
   } catch (error) {
-    console.error('Error uploading files:', error);
+    if (error instanceof Error) {
+      console.error('Upload error:', error.message);
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to upload files' },
       { status: 500 }

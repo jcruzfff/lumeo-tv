@@ -1,7 +1,6 @@
 'use client';
 
 import { useTimer } from '../contexts/TimerContext';
-import { useEffect } from 'react';
 
 const formatTime = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60);

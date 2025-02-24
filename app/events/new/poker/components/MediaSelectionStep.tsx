@@ -9,6 +9,11 @@ interface MediaSelectionStepProps {
   onCompleteAction: (mediaItems: MediaItem[]) => void;
 }
 
+interface UploadedFile {
+  type: 'IMAGE' | 'VIDEO';
+  url: string;
+}
+
 /**
  * Component for managing media items in the event setup process.
  * Handles file uploads, media ordering, and preview display.
@@ -57,7 +62,7 @@ export default function MediaSelectionStep({ onCompleteAction }: MediaSelectionS
       const uploadedFiles = await response.json();
 
       // Create media items with permanent URLs
-      const newMediaItems: MediaItem[] = uploadedFiles.map((file: any, index: number) => ({
+      const newMediaItems: MediaItem[] = uploadedFiles.map((file: UploadedFile, index: number) => ({
         id: uuidv4(),
         type: file.type,
         url: file.url,
