@@ -176,11 +176,21 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
         return prev;
       }
 
+      // Find the highest position in the current waitlist
+      const highestPosition = prev.waitingList.reduce((max, player) => 
+        Math.max(max, player.position), -1);
+
+      // Capitalize first letter of each word
+      const capitalizedName = name.trim()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+
       const newPlayer: Player = {
         id: crypto.randomUUID(),
         eventId: eventId,
-        name: name.trim(),
-        position: prev.waitingList.length,
+        name: capitalizedName,
+        position: highestPosition + 1, // Always add to the end
         addedAt: new Date().toISOString()
       };
 

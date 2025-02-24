@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { broadcastEventUpdate } from '../../ws/route';
 
 interface RouteParams {
   params: {
@@ -53,11 +52,8 @@ export async function POST(request: Request, { params }: RouteParams) {
       orderBy: { position: 'asc' }
     });
 
-    // Broadcast the update
-    broadcastEventUpdate(eventId, { waitingList: updatedWaitlist });
-
     console.log('[Waitlist API] Created player:', player);
-    return NextResponse.json(player);
+    return NextResponse.json({ player, waitingList: updatedWaitlist });
   } catch (error) {
     console.error('[Waitlist API] Error adding player:', error);
     return NextResponse.json(
@@ -85,10 +81,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       orderBy: { position: 'asc' }
     });
 
-    // Broadcast the update
-    broadcastEventUpdate(eventId, { waitingList: updatedWaitlist });
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, waitingList: updatedWaitlist });
   } catch (error) {
     console.error('[Waitlist API] Error removing player:', error);
     return NextResponse.json(
@@ -169,10 +162,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       orderBy: { position: 'asc' }
     });
 
-    // Broadcast the update
-    broadcastEventUpdate(eventId, { waitingList: updatedWaitlist });
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, waitingList: updatedWaitlist });
   } catch (error) {
     console.error('Error reordering waiting list:', error);
     return NextResponse.json(

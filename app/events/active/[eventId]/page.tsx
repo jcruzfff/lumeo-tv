@@ -526,9 +526,7 @@ export default function EventManagement() {
                     <Sheet>
                       <SheetTrigger asChild>
                         <button className="flex items-center gap-2 px-4 py-2 bg-dark-surface text-text-primary rounded-lg hover:bg-dark-surface-lighter transition-colors">
-                          <Settings size={20} />
-                          Room Settings
-                        </button>
+                          <Settings size={20} /></button>
                       </SheetTrigger>
                       <SheetContent>
                         <SheetHeader>

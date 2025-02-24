@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { Event } from '@/app/types/events';
+import type { Event, Player, Table } from '@/app/types/events';
 import { isBasketballSettings } from '@/app/types/events';
 import { usePokerRoom } from '../contexts/PokerRoomContext';
 import { useEventPolling } from './useEventPolling';
@@ -85,6 +85,43 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
     if (!event) return;
 
     try {
+      console.log('[EventManagement] Adding player:', { name, eventId });
+
+      // Calculate the next position for optimistic update
+      const nextPosition = event.waitingList.length > 0
+        ? Math.max(...event.waitingList.map(p => p.position)) + 1
+        : 1;
+
+      // Create optimistic player
+      const optimisticPlayer = {
+        id: `temp-${Date.now()}`, // temporary ID that will be replaced
+        name: name.trim(),
+        position: nextPosition,
+        eventId,
+        addedAt: new Date().toISOString()
+      };
+
+      // Optimistically update the UI
+      const optimisticWaitlist = [...event.waitingList, optimisticPlayer];
+      console.log('[EventManagement] Optimistically updating waitlist:', optimisticWaitlist);
+
+      setPokerRoomState({
+        tables: event.tables,
+        waitingList: optimisticWaitlist,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      setEvent(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          waitingList: optimisticWaitlist
+        };
+      });
+
+      // Make the API call
       const response = await fetch(`/api/events/${eventId}/waitinglist`, {
         method: 'POST',
         headers: {
@@ -96,27 +133,47 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
       const data = await response.json();
       
       if (!response.ok) {
+        // If the API call fails, revert to the original state
+        console.log('[EventManagement] API call failed, reverting state');
+        setPokerRoomState({
+          tables: event.tables,
+          waitingList: event.waitingList,
+          showRoomInfo: true,
+          isRoomManagementEnabled: true,
+          showWaitlistOnDisplay: true
+        });
+
+        setEvent(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            waitingList: event.waitingList
+          };
+        });
         throw new Error(data.error || 'Failed to add player');
       }
 
-      // First update the poker room context
+      // Update with the server response to ensure consistency
+      const serverWaitlist = data.waitingList as Player[];
+      console.log('[EventManagement] Updating state with server waitlist:', serverWaitlist);
+
       setPokerRoomState({
         tables: event.tables,
-        waitingList: [...event.waitingList, data].sort((a, b) => a.position - b.position),
+        waitingList: serverWaitlist,
         showRoomInfo: true,
         isRoomManagementEnabled: true,
         showWaitlistOnDisplay: true
       });
 
-      // Then update the event state
       setEvent(prev => {
         if (!prev) return null;
         return {
           ...prev,
-          waitingList: [...prev.waitingList, data].sort((a, b) => a.position - b.position)
+          waitingList: serverWaitlist
         };
       });
 
+      console.log('[EventManagement] State updated successfully');
     } catch (error) {
       console.error('[EventManagement] Error adding player:', error);
       setError(error instanceof Error ? error.message : 'Failed to add player');
@@ -127,32 +184,82 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
     if (!event) return;
 
     try {
-      const response = await fetch(`/api/events/${eventId}/waitinglist/${playerId}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to remove player');
-      }
-
-      // First update the poker room context
+      console.log('[EventManagement] Removing player:', { playerId, eventId });
+      
+      // Optimistically update the UI first
+      const optimisticWaitlist = event.waitingList.filter(p => p.id !== playerId);
+      console.log('[EventManagement] Optimistically updating waitlist:', optimisticWaitlist);
+      
       setPokerRoomState({
         tables: event.tables,
-        waitingList: event.waitingList.filter(p => p.id !== playerId),
+        waitingList: optimisticWaitlist,
         showRoomInfo: true,
         isRoomManagementEnabled: true,
         showWaitlistOnDisplay: true
       });
 
-      // Then update the event state
       setEvent(prev => {
         if (!prev) return null;
         return {
           ...prev,
-          waitingList: prev.waitingList.filter(p => p.id !== playerId)
+          waitingList: optimisticWaitlist
+        };
+      });
+      
+      // Then make the API call
+      const response = await fetch(`/api/events/${eventId}/waitinglist`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ playerId })
+      });
+
+      const data = await response.json();
+      console.log('[EventManagement] Remove player response:', data);
+
+      if (!response.ok) {
+        // If the API call fails, revert to the original state
+        console.log('[EventManagement] API call failed, reverting state');
+        setPokerRoomState({
+          tables: event.tables,
+          waitingList: event.waitingList,
+          showRoomInfo: true,
+          isRoomManagementEnabled: true,
+          showWaitlistOnDisplay: true
+        });
+
+        setEvent(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            waitingList: event.waitingList
+          };
+        });
+        throw new Error(data.error || 'Failed to remove player');
+      }
+
+      // Update with the server response to ensure consistency
+      const newWaitlist = data.waitingList as Player[];
+      console.log('[EventManagement] Updating state with server waitlist:', newWaitlist);
+
+      setPokerRoomState({
+        tables: event.tables,
+        waitingList: newWaitlist,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      setEvent(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          waitingList: newWaitlist
         };
       });
 
+      console.log('[EventManagement] State updated successfully');
     } catch (error) {
       console.error('[EventManagement] Error removing player:', error);
       setError(error instanceof Error ? error.message : 'Failed to remove player');
@@ -161,10 +268,57 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
 
   const reorderWaitlist = useCallback(async (playerId: string, newPosition: number) => {
     try {
-      console.log('Attempting to reorder waitlist:', { playerId, newPosition });
+      console.log('[EventManagement] Reordering waitlist:', { playerId, newPosition, currentEvent: event });
       setIsLoading(true);
 
-      // Make the API call to reorder the waitlist
+      if (!event) {
+        throw new Error('No event data available');
+      }
+
+      // Optimistically update the UI
+      const player = event.waitingList.find(p => p.id === playerId);
+      if (!player) {
+        throw new Error('Player not found');
+      }
+
+      const oldPosition = player.position;
+      const optimisticWaitlist = [...event.waitingList];
+      
+      // Remove player from old position
+      const playerToMove = optimisticWaitlist.splice(oldPosition - 1, 1)[0];
+      // Insert at new position
+      optimisticWaitlist.splice(newPosition - 1, 0, playerToMove);
+      
+      // Update positions for all players
+      const reorderedWaitlist = optimisticWaitlist.map((p, idx) => ({
+        ...p,
+        position: idx + 1
+      }));
+
+      console.log('[EventManagement] Optimistic update:', {
+        oldPosition,
+        newPosition,
+        reorderedWaitlist
+      });
+
+      // Update UI optimistically
+      setPokerRoomState({
+        tables: event.tables,
+        waitingList: reorderedWaitlist,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      setEvent(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          waitingList: reorderedWaitlist
+        };
+      });
+
+      // Make the API call
       const response = await fetch(`/api/events/${eventId}/waitinglist`, {
         method: 'PATCH',
         headers: {
@@ -177,36 +331,107 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
         throw new Error('Failed to reorder waitlist');
       }
 
-      // Fetch the updated event data to ensure we have the correct order
-      const eventResponse = await fetch(`/api/events/${eventId}`);
-      if (!eventResponse.ok) {
-        throw new Error('Failed to fetch updated event data');
-      }
+      const data = await response.json();
+      console.log('[EventManagement] Server response:', data);
 
-      const updatedEvent = await eventResponse.json();
-      console.log('Updated event data after reorder:', {
-        waitlistLength: updatedEvent.waitingList?.length || 0,
-        waitlist: updatedEvent.waitingList
+      // Update with the server response to ensure consistency
+      const serverWaitlist = data.waitingList as Player[];
+      
+      setPokerRoomState({
+        tables: event.tables,
+        waitingList: serverWaitlist,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
       });
 
-      // Update the local state with the fresh data
-      setEvent(updatedEvent);
+      setEvent(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          waitingList: serverWaitlist
+        };
+      });
 
-      // Return the updated waitlist for the UI to use
-      return updatedEvent.waitingList;
+      return serverWaitlist;
     } catch (error) {
-      console.error('Error reordering waitlist:', error);
+      console.error('[EventManagement] Error reordering waitlist:', error);
+      
+      // Revert to original state on error
+      if (event) {
+        setPokerRoomState({
+          tables: event.tables,
+          waitingList: event.waitingList,
+          showRoomInfo: true,
+          isRoomManagementEnabled: true,
+          showWaitlistOnDisplay: true
+        });
+
+        setEvent(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            waitingList: event.waitingList
+          };
+        });
+      }
+      
       setError(error instanceof Error ? error.message : 'Failed to reorder waitlist');
       return null;
     } finally {
       setIsLoading(false);
     }
-  }, [eventId]);
+  }, [event, eventId, setPokerRoomState]);
 
   // Table Management
   const addTable = useCallback(async () => {
     try {
-      setIsLoading(true);
+      if (!event) return;
+      console.log('[EventManagement] Adding new table');
+
+      // Calculate the next table number
+      const nextTableNumber = event.tables.length > 0
+        ? Math.max(...event.tables.map(t => t.number)) + 1
+        : 1;
+
+      // Create optimistic table with empty seats
+      const optimisticTable = {
+        id: `temp-${Date.now()}`,
+        eventId,
+        number: nextTableNumber,
+        createdAt: new Date().toISOString(),
+        seats: Array.from({ length: 9 }).map((_, i) => ({
+          id: `temp-seat-${i}`,
+          tableId: `temp-${Date.now()}`,
+          position: i + 1,
+          playerId: null,
+          playerName: null,
+          createdAt: new Date().toISOString()
+        }))
+      } as Table;
+
+      // Create optimistic tables array
+      const optimisticTables = [...event.tables, optimisticTable];
+      console.log('[EventManagement] Optimistically updating tables:', optimisticTables);
+
+      // Update UI optimistically
+      setPokerRoomState({
+        tables: optimisticTables,
+        waitingList: event.waitingList,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      setEvent(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          tables: optimisticTables
+        };
+      });
+
+      // Make the API call
       const response = await fetch(`/api/events/${eventId}/tables`, {
         method: 'POST',
         headers: {
@@ -215,23 +440,55 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
       });
 
       if (!response.ok) {
+        // If the API call fails, revert to the original state
+        console.log('[EventManagement] API call failed, reverting state');
+        setPokerRoomState({
+          tables: event.tables,
+          waitingList: event.waitingList,
+          showRoomInfo: true,
+          isRoomManagementEnabled: true,
+          showWaitlistOnDisplay: true
+        });
+
+        setEvent(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            tables: event.tables
+          };
+        });
         throw new Error('Failed to add table');
       }
 
-      const newTable = await response.json();
-      setEvent((prev) => {
-        if (!prev) return prev;
+      const data = await response.json();
+      console.log('[EventManagement] Server response:', data);
+
+      // Update with the server response to ensure consistency
+      const updatedTables = [...event.tables.filter(t => t.id !== optimisticTable.id), data];
+      updatedTables.sort((a, b) => a.number - b.number);
+
+      setPokerRoomState({
+        tables: updatedTables,
+        waitingList: event.waitingList,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      setEvent(prev => {
+        if (!prev) return null;
         return {
           ...prev,
-          tables: [...prev.tables, newTable]
+          tables: updatedTables
         };
       });
+
+      console.log('[EventManagement] State updated successfully');
     } catch (error) {
+      console.error('[EventManagement] Error adding table:', error);
       setError(error instanceof Error ? error.message : 'Failed to add table');
-    } finally {
-      setIsLoading(false);
     }
-  }, [eventId]);
+  }, [event, eventId, setPokerRoomState]);
 
   const removeTable = useCallback(async (tableId: string) => {
     try {
@@ -367,38 +624,166 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
 
   const assignSeat = useCallback(async (tableId: string, seatIndex: number) => {
     try {
-      setIsLoading(true);
+      if (!event) return;
+      console.log('[EventManagement] Assigning seat:', { tableId, seatIndex, eventId });
+
+      // Get the next player from the waiting list
+      const nextPlayer = event.waitingList[0];
+      if (!nextPlayer) {
+        console.log('[EventManagement] No players in waiting list');
+        return;
+      }
+
+      // Create optimistic table update
+      const optimisticTables = event.tables.map(table => {
+        if (table.id === tableId) {
+          const updatedSeats = [...table.seats];
+          updatedSeats[seatIndex] = {
+            ...updatedSeats[seatIndex],
+            playerId: nextPlayer.id,
+            playerName: nextPlayer.name
+          };
+          return { ...table, seats: updatedSeats };
+        }
+        return table;
+      });
+
+      // Create optimistic waitlist (remove assigned player)
+      const optimisticWaitlist = event.waitingList.slice(1);
+
+      console.log('[EventManagement] Optimistically updating table and waitlist:', {
+        tables: optimisticTables,
+        waitlist: optimisticWaitlist
+      });
+
+      // Update UI optimistically
+      setPokerRoomState({
+        tables: optimisticTables,
+        waitingList: optimisticWaitlist,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      setEvent(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          tables: optimisticTables,
+          waitingList: optimisticWaitlist
+        };
+      });
+
+      // Make the API call
       const response = await fetch(`/api/events/${eventId}/tables/${tableId}/seats/${seatIndex}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ playerId: nextPlayer.id })
       });
 
       if (!response.ok) {
+        // If the API call fails, revert to the original state
+        console.log('[EventManagement] API call failed, reverting state');
+        setPokerRoomState({
+          tables: event.tables,
+          waitingList: event.waitingList,
+          showRoomInfo: true,
+          isRoomManagementEnabled: true,
+          showWaitlistOnDisplay: true
+        });
+
+        setEvent(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            tables: event.tables,
+            waitingList: event.waitingList
+          };
+        });
         throw new Error('Failed to assign seat');
       }
 
-      const updatedTable = await response.json();
-      setEvent((prev) => {
-        if (!prev) return prev;
+      const data = await response.json();
+      console.log('[EventManagement] Server response:', data);
+
+      // Update with the server response to ensure consistency
+      setPokerRoomState({
+        tables: data.tables,
+        waitingList: data.waitingList,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      setEvent(prev => {
+        if (!prev) return null;
         return {
           ...prev,
-          tables: prev.tables.map((table) =>
-            table.id === tableId ? updatedTable : table
-          )
+          tables: data.tables,
+          waitingList: data.waitingList
         };
       });
+
+      console.log('[EventManagement] State updated successfully');
     } catch (error) {
+      console.error('[EventManagement] Error assigning seat:', error);
       setError(error instanceof Error ? error.message : 'Failed to assign seat');
-    } finally {
-      setIsLoading(false);
     }
-  }, [eventId]);
+  }, [event, eventId, setPokerRoomState]);
 
   const emptySeat = useCallback(async (tableId: string, seatIndex: number) => {
     try {
-      setIsLoading(true);
+      if (!event) return;
+      console.log('[EventManagement] Emptying seat:', { tableId, seatIndex, eventId });
+
+      // Find the table and seat
+      const table = event.tables.find(t => t.id === tableId);
+      if (!table) {
+        throw new Error('Table not found');
+      }
+
+      const seat = table.seats[seatIndex];
+      if (!seat?.playerId) {
+        console.log('[EventManagement] Seat is already empty');
+        return;
+      }
+
+      // Create optimistic table update
+      const optimisticTables = event.tables.map(t => {
+        if (t.id === tableId) {
+          const updatedSeats = [...t.seats];
+          updatedSeats[seatIndex] = {
+            ...updatedSeats[seatIndex],
+            playerId: null,
+            playerName: null
+          };
+          return { ...t, seats: updatedSeats };
+        }
+        return t;
+      });
+
+      console.log('[EventManagement] Optimistically updating tables:', optimisticTables);
+
+      // Update UI optimistically
+      setPokerRoomState({
+        tables: optimisticTables,
+        waitingList: event.waitingList,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      setEvent(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          tables: optimisticTables
+        };
+      });
+
+      // Make the API call
       const response = await fetch(`/api/events/${eventId}/tables/${tableId}/seats/${seatIndex}`, {
         method: 'DELETE',
         headers: {
@@ -407,25 +792,53 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
       });
 
       if (!response.ok) {
+        // If the API call fails, revert to the original state
+        console.log('[EventManagement] API call failed, reverting state');
+        setPokerRoomState({
+          tables: event.tables,
+          waitingList: event.waitingList,
+          showRoomInfo: true,
+          isRoomManagementEnabled: true,
+          showWaitlistOnDisplay: true
+        });
+
+        setEvent(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            tables: event.tables
+          };
+        });
         throw new Error('Failed to empty seat');
       }
 
-      const updatedTable = await response.json();
-      setEvent((prev) => {
-        if (!prev) return prev;
+      const data = await response.json();
+      console.log('[EventManagement] Server response:', data);
+
+      // Update with the server response to ensure consistency
+      setPokerRoomState({
+        tables: data.tables,
+        waitingList: data.waitingList,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      setEvent(prev => {
+        if (!prev) return null;
         return {
           ...prev,
-          tables: prev.tables.map((table) =>
-            table.id === tableId ? updatedTable : table
-          )
+          tables: data.tables,
+          waitingList: data.waitingList
         };
       });
+
+      console.log('[EventManagement] State updated successfully');
     } catch (error) {
+      console.error('[EventManagement] Error emptying seat:', error);
       setError(error instanceof Error ? error.message : 'Failed to empty seat');
-    } finally {
-      setIsLoading(false);
     }
-  }, [eventId]);
+  }, [event, eventId, setPokerRoomState]);
 
   return {
     event,
