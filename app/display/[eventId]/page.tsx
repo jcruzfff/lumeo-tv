@@ -534,35 +534,49 @@ export default function EventDisplay() {
           <>
             {/* Prominent center display when isTimerPage is true */}
             {isTimerPage && (
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center w-full max-w-4xl px-8">
-                <div className="text-[128px] font-bold leading-none mb-8">
-                  {formatTime(pokerState.timeRemaining)}
-                </div>
-                <div className="text-4xl mb-4">
-                  Blinds: {pokerState.levels[pokerState.currentLevel].smallBlind}/{pokerState.levels[pokerState.currentLevel].bigBlind}
-                </div>
-                <div className="text-2xl">
-                  Level {pokerState.currentLevel + 1} of {pokerState.levels.length}
-                </div>
+              <div className="relative h-screen">
+                {/* Background Image */}
+                <Image
+                  src="/bg-clock.png"
+                  alt="Background"
+                  fill
+                  className="object-cover opacity-50"
+                  priority
+                />
 
-                {/* Main Waitlist Display */}
-                {isRoomManagementEnabled && showWaitlistOnDisplay && waitingList.length > 0 && (
-                  <div className="mt-8 pt-8 border-t border-white/20">
-                    <h3 className="text-2xl font-semibold mb-4">Waiting List</h3>
-                    <div className="flex flex-col items-center space-y-2">
-                      {waitingList.slice(0, 5).map((player, index) => (
-                        <div key={player.id} className="text-xl">
-                          {index + 1}. {player.name}
-                        </div>
-                      ))}
-                      {waitingList.length > 5 && (
-                        <div className="text-lg text-white/70">
-                          +{waitingList.length - 5} more
-                        </div>
-                      )}
+                {/* Main Content */}
+                <div className="relative h-screen p-8 grid grid-cols-[1fr_400px] gap-8">
+                  {/* Left Section - Timer and Blinds */}
+                  <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-12 flex flex-col justify-center items-start">
+                    <div className="text-[180px] font-bold leading-none mb-8">
+                      {formatTime(pokerState.timeRemaining)}
+                    </div>
+                    <div className="text-[64px] font-light mb-4">
+                      Blinds {pokerState.levels[pokerState.currentLevel].smallBlind}/{pokerState.levels[pokerState.currentLevel].bigBlind}
+                    </div>
+                    <div className="text-3xl font-light opacity-80">
+                      Level {pokerState.currentLevel + 1} of {pokerState.levels.length}
                     </div>
                   </div>
-                )}
+
+                  {/* Right Section - Waitlist */}
+                  {isRoomManagementEnabled && showWaitlistOnDisplay && waitingList.length > 0 && (
+                    <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-12">
+                      <div className="flex justify-between items-center mb-8">
+                        <h2 className="text-4xl font-light">Waitlist</h2>
+                        <span className="text-lg opacity-80">Total: {waitingList.length}</span>
+                      </div>
+                      
+                      <div className="space-y-4 text-2xl">
+                        {waitingList.map((player, index) => (
+                          <div key={player.id} className="text-white/90">
+                            {index + 1}. {player.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             
