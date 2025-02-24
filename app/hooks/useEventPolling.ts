@@ -17,6 +17,7 @@ interface ApiPlayer extends Player {
 interface UseEventPollingOptions {
   onEventData?: (data: Event) => void;
   skipStateUpdate?: boolean;
+  shouldPoll?: boolean; // New parameter to control polling
 }
 
 export function useEventPolling(eventId: string, options: UseEventPollingOptions = {}) {
@@ -26,6 +27,7 @@ export function useEventPolling(eventId: string, options: UseEventPollingOptions
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const stateRef = useRef(pokerRoom);
   const lastDataRef = useRef<string>(''); // Track last data to prevent unnecessary updates
+  const isPollingStartedRef = useRef(false);
 
   // Keep stateRef current without triggering effect
   useEffect(() => {
@@ -71,7 +73,26 @@ export function useEventPolling(eventId: string, options: UseEventPollingOptions
   }, [eventId, router, setPokerRoomState]);
 
   useEffect(() => {
-    if (!eventId) return;
+    // Only start polling if shouldPoll is true
+    if (!eventId || !options.shouldPoll) {
+      console.log('[EventPolling] Polling disabled or no eventId');
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+        isPollingStartedRef.current = false;
+      }
+      return;
+    }
+
+    // Log when polling starts for the first time
+    if (!isPollingStartedRef.current) {
+      console.log('[EventPolling] Starting polling for event:', {
+        eventId,
+        interval: POLLING_INTERVAL,
+        timestamp: new Date().toISOString()
+      });
+      isPollingStartedRef.current = true;
+    }
 
     const fetchEventData = async () => {
       try {
@@ -169,8 +190,13 @@ export function useEventPolling(eventId: string, options: UseEventPollingOptions
     fetchEventData();
 
     // Setup polling
-    console.log('[EventPolling] Setting up polling interval:', { intervalMs: POLLING_INTERVAL });
-    pollingRef.current = setInterval(fetchEventData, POLLING_INTERVAL);
+    if (!pollingRef.current) {
+      console.log('[EventPolling] Setting up polling interval:', { 
+        intervalMs: POLLING_INTERVAL,
+        timestamp: new Date().toISOString()
+      });
+      pollingRef.current = setInterval(fetchEventData, POLLING_INTERVAL);
+    }
 
     // Cleanup
     return () => {
@@ -178,6 +204,7 @@ export function useEventPolling(eventId: string, options: UseEventPollingOptions
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
+        isPollingStartedRef.current = false;
       }
     };
   }, [eventId, setPokerRoomState, router, handleEventEnd, options]); // Added options to dependencies

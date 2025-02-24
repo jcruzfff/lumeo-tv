@@ -13,25 +13,37 @@ export interface RoomManagementSettings {
   showWaitlistOnDisplay: boolean;
 }
 
-export interface PokerSettings extends RoomManagementSettings {
+export interface PokerSettings {
   isRunning: boolean;
   currentLevel: number;
-  timeRemaining: number; // in seconds
+  timeRemaining: number;
   levels: BlindLevel[];
+  breakDuration: number;
+  totalPlayTime: number;
+  mediaInterval?: number;
+  isRoomManagementEnabled?: boolean;
+  showWaitlistOnDisplay?: boolean;
 }
 
 export interface BasketballSettings {
   isRunning: boolean;
-  gameTime: number; // in seconds
+  gameTime: number;
   period: number;
-  totalPeriods: number;
   homeScore: number;
   awayScore: number;
+  totalPeriods: number;
+  mediaInterval?: number;
+  isRoomManagementEnabled?: boolean;
+  showWaitlistOnDisplay?: boolean;
 }
 
 export interface CustomSettings {
   isRunning: boolean;
-  timeRemaining: number; // in seconds
+  timeRemaining: number;
+  duration: number;
+  mediaInterval?: number;
+  isRoomManagementEnabled?: boolean;
+  showWaitlistOnDisplay?: boolean;
 }
 
 export interface DisplaySettings {
@@ -68,6 +80,13 @@ export interface MediaItem {
   duration?: number;
 }
 
+export interface DisplayState {
+  currentMediaIndex: number;
+  mediaItems: MediaItem[];
+  showTimer: boolean;
+  cycleInterval: number;
+}
+
 export interface Seat {
   id: string;
   tableId: string;
@@ -96,10 +115,10 @@ export interface Player {
 export interface Event {
   id: string;
   name: string;
-  type: EventType;
-  status: EventStatus;
+  type: 'POKER' | 'BASKETBALL' | 'CUSTOM';
+  status: 'ACTIVE' | 'ENDED' | 'SCHEDULED';
   createdAt: string; // ISO date string
-  startedAt?: string; // ISO date string
+  startedAt: string; // ISO date string
   endedAt?: string; // ISO date string
   settings: PokerSettings | BasketballSettings | CustomSettings;
   displaySettings: DisplaySettings;

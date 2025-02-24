@@ -97,7 +97,8 @@ export default function EventDisplay() {
         }
       }
     },
-    skipStateUpdate: true
+    skipStateUpdate: true,
+    shouldPoll: true // Enable polling for display window
   });
 
   useEffect(() => {
