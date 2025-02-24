@@ -8,6 +8,7 @@ import { usePokerRoom, PokerRoomState } from '@/app/contexts/PokerRoomContext';
 import Image from 'next/image';
 import { MediaItem } from '@/app/types';
 import { Table, Seat, Player } from '@/app/types/events';
+import { useEventPolling } from '@/app/hooks/useEventPolling';
 
 interface WaitingPlayer {
   id: string;
@@ -26,6 +27,78 @@ export default function EventDisplay() {
   const [isClientReady, setIsClientReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Initialize polling for updates with callback
+  useEventPolling(eventId, {
+    onEventData: (event) => {
+      if (event.type === 'POKER') {
+        // Process tables and waitlist data
+        const processedTables = (event.tables || []).map((table: Table) => ({
+          id: table.id,
+          eventId: table.eventId,
+          number: table.number,
+          seats: table.seats.map((seat: Seat) => ({
+            id: seat.id,
+            tableId: seat.tableId,
+            position: seat.position,
+            playerId: seat.playerId || null,
+            playerName: seat.playerName || null,
+            createdAt: seat.createdAt
+          })),
+          createdAt: table.createdAt
+        }));
+
+        // Process waitlist and ensure it's sorted by position
+        const processedWaitlist = (event.waitingList || [])
+          .sort((a: Player, b: Player) => a.position - b.position)
+          .map((player: Player) => ({
+            id: player.id,
+            eventId: player.eventId,
+            name: player.name,
+            position: player.position,
+            addedAt: player.addedAt
+          }));
+
+        console.log('[Display] Polling - Processed waitlist:', {
+          originalCount: event.waitingList?.length || 0,
+          processedCount: processedWaitlist.length,
+          waitlistData: processedWaitlist
+        });
+
+        // Create new state while maintaining room management settings
+        const currentStateStr = localStorage.getItem('pokerRoomState');
+        const currentState = currentStateStr ? JSON.parse(currentStateStr) : null;
+
+        const newState: PokerRoomState = {
+          tables: processedTables,
+          waitingList: processedWaitlist,
+          showRoomInfo: true,
+          // Maintain existing room management settings or default to true
+          isRoomManagementEnabled: currentState?.isRoomManagementEnabled ?? true,
+          showWaitlistOnDisplay: currentState?.showWaitlistOnDisplay ?? true
+        };
+
+        // Only update if there are actual changes to the data
+        const hasDataChanged = !currentState || 
+          JSON.stringify(currentState.tables) !== JSON.stringify(processedTables) ||
+          JSON.stringify(currentState.waitingList.map((p: WaitingPlayer) => ({ id: p.id, name: p.name, position: p.position }))) !== 
+          JSON.stringify(processedWaitlist.map((p: WaitingPlayer) => ({ id: p.id, name: p.name, position: p.position })));
+
+        if (hasDataChanged) {
+          console.log('[Display] Polling - Updating poker room state:', {
+            waitingListCount: processedWaitlist.length,
+            tablesCount: processedTables.length,
+            isRoomManagementEnabled: newState.isRoomManagementEnabled,
+            showWaitlistOnDisplay: newState.showWaitlistOnDisplay,
+            waitlistData: processedWaitlist
+          });
+          setPokerRoomState(newState);
+          localStorage.setItem('pokerRoomState', JSON.stringify(newState));
+        }
+      }
+    },
+    skipStateUpdate: true
+  });
 
   useEffect(() => {
     console.log('[Display] Component mounted');
@@ -145,16 +218,24 @@ export default function EventDisplay() {
           localStorage.setItem('pokerRoomState', JSON.stringify(newState));
           localStorage.setItem('activeEventId', eventId as string);
 
+          // Load display settings from event data
+          if (event.displaySettings) {
+            console.log('[Display] Loading display settings from event:', event.displaySettings);
+            localStorage.setItem('displaySettings', JSON.stringify(event.displaySettings));
+          }
+
           if (event.mediaItems?.length > 0) {
             console.log('[Display] Loading media items:', {
               count: event.mediaItems.length,
-              types: event.mediaItems.map((item: { type: string; path: string }) => ({ type: item.type, path: item.path }))
+              types: event.mediaItems.map((item: MediaItem) => ({ type: item.type, url: item.url }))
             });
-            // Ensure media items have proper paths
-            const processedMediaItems = event.mediaItems.map((item: MediaItem & { url?: string }) => ({
-              ...item,
-              path: item.path || item.url, // Handle both path and url properties
-              type: item.type || (item.path?.toLowerCase().endsWith('.mp4') ? 'video' : 'image')
+            // Process media items ensuring they match the MediaItem interface
+            const processedMediaItems = event.mediaItems.map((item: MediaItem) => ({
+              id: item.id,
+              type: item.type,
+              url: item.url,
+              displayOrder: item.displayOrder,
+              duration: item.duration
             }));
             console.log('[Display] Processed media items:', processedMediaItems);
             setMediaItems(processedMediaItems);
@@ -382,106 +463,6 @@ export default function EventDisplay() {
     return () => clearInterval(pollInterval);
   }, [isClientReady, activeTimer, eventId, setBasketballState]);
 
-  // Poll for poker room state updates
-  useEffect(() => {
-    if (!isClientReady || activeTimer !== 'poker' || !eventId) return;
-
-    console.log('[Display] Setting up poker room state polling');
-
-    const pollRoomState = async () => {
-      try {
-        console.log('[Display] Polling event data for ID:', eventId);
-        const response = await fetch(`/api/events/${eventId}`, {
-          credentials: 'include'
-        });
-        console.log('[Display] Poll response status:', response.status);
-
-        if (!response.ok) {
-          console.log('[Display] Poll response not OK:', response.status);
-          return;
-        }
-
-        const event = await response.json();
-        console.log('[Display] Poll response data:', {
-          id: event.id,
-          type: event.type,
-          waitingListRaw: event.waitingList,
-          waitingListLength: event.waitingList?.length,
-          tables: event.tables?.length
-        });
-        
-        // Process tables and waitlist data
-        const processedTables = (event.tables || []).map((table: Table) => ({
-          id: table.id,
-          eventId: table.eventId,
-          number: table.number,
-          seats: table.seats.map((seat: Seat) => ({
-            ...seat,
-            playerId: seat.playerId || undefined,
-            playerName: seat.playerName || undefined
-          })),
-          createdAt: table.createdAt
-        }));
-
-        // Process waitlist and ensure it's sorted by position
-        const processedWaitlist = (event.waitingList || [])
-          .sort((a: Player, b: Player) => a.position - b.position)
-          .map((player: Player) => ({
-            id: player.id,
-            name: player.name,
-            position: player.position
-          }));
-
-        console.log('[Display] Polling - Processed waitlist:', {
-          originalCount: event.waitingList?.length || 0,
-          processedCount: processedWaitlist.length,
-          waitlistData: processedWaitlist
-        });
-
-        // Create new state while maintaining room management settings
-        const currentStateStr = localStorage.getItem('pokerRoomState');
-        const currentState = currentStateStr ? JSON.parse(currentStateStr) : null;
-
-        const newState: PokerRoomState = {
-          tables: processedTables,
-          waitingList: processedWaitlist,
-          showRoomInfo: true,
-          // Maintain existing room management settings or default to true
-          isRoomManagementEnabled: currentState?.isRoomManagementEnabled ?? true,
-          showWaitlistOnDisplay: currentState?.showWaitlistOnDisplay ?? true
-        };
-
-        // Only update if there are actual changes to the data
-        const hasDataChanged = !currentState || 
-          JSON.stringify(currentState.tables) !== JSON.stringify(processedTables) ||
-          JSON.stringify(currentState.waitingList.map((p: WaitingPlayer) => ({ id: p.id, name: p.name, position: p.position }))) !== 
-          JSON.stringify(processedWaitlist.map((p: WaitingPlayer) => ({ id: p.id, name: p.name, position: p.position })));
-
-        if (hasDataChanged) {
-          console.log('[Display] Polling - Updating poker room state:', {
-            waitingListCount: processedWaitlist.length,
-            tablesCount: processedTables.length,
-            isRoomManagementEnabled: newState.isRoomManagementEnabled,
-            showWaitlistOnDisplay: newState.showWaitlistOnDisplay,
-            waitlistData: processedWaitlist
-          });
-          setPokerRoomState(newState);
-          localStorage.setItem('pokerRoomState', JSON.stringify(newState));
-        }
-      } catch (error) {
-        console.error('[Display] Error polling room state:', error);
-      }
-    };
-
-    // Initial poll
-    pollRoomState();
-
-    // Set up polling interval
-    const interval = setInterval(pollRoomState, 1000);
-
-    return () => clearInterval(interval);
-  }, [isClientReady, activeTimer, eventId, setPokerRoomState]);
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center" onClick={handleClick}>
@@ -515,10 +496,10 @@ export default function EventDisplay() {
         {/* Media display */}
         {!isTimerPage && mediaItems.length > 0 && currentMediaIndex < mediaItems.length && mediaItems[currentMediaIndex] && (
           <div className="absolute inset-0 w-full h-full bg-black">
-            {mediaItems[currentMediaIndex].type === 'video' ? (
+            {mediaItems[currentMediaIndex].type === 'VIDEO' ? (
               <video
                 key={mediaItems[currentMediaIndex].id}
-                src={mediaItems[currentMediaIndex].path || ''}
+                src={mediaItems[currentMediaIndex].url || ''}
                 className="absolute inset-0 w-full h-full object-contain"
                 autoPlay
                 muted
@@ -532,10 +513,10 @@ export default function EventDisplay() {
                   }
                 }}
               />
-            ) : mediaItems[currentMediaIndex].path ? (
+            ) : mediaItems[currentMediaIndex].url ? (
               <Image
                 key={mediaItems[currentMediaIndex].id}
-                src={mediaItems[currentMediaIndex].path}
+                src={mediaItems[currentMediaIndex].url}
                 alt="Display content"
                 fill
                 className="object-contain"

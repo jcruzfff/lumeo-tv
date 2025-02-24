@@ -23,13 +23,19 @@ interface TableInput {
   }[];
 }
 
+interface WaitlistInput {
+  id: string;
+  name: string;
+  position: number;
+}
+
 export async function GET(request: Request, { params }: RouteParams) {
   try {
-    const { eventId } = params;
-    console.log('GET request received for eventId:', eventId);
+    const eventId = await Promise.resolve(params.eventId);
+    console.log('[API] GET request received for eventId:', eventId);
     
     const session = await getServerSession(authOptions);
-    console.log('Session state:', session ? 'Authenticated' : 'Unauthenticated');
+    console.log('[API] Session state:', session ? 'Authenticated' : 'Unauthenticated');
 
     // Allow unauthenticated access for GET requests
     const event = await prisma.event.findUnique({
@@ -37,8 +43,19 @@ export async function GET(request: Request, { params }: RouteParams) {
         id: eventId
       },
       include: {
-        mediaItems: true,
-        tables: true,
+        mediaItems: {
+          orderBy: {
+            displayOrder: 'asc'
+          }
+        },
+        tables: {
+          include: {
+            seats: true
+          },
+          orderBy: {
+            number: 'asc'
+          }
+        },
         waitingList: {
           orderBy: {
             position: 'asc'
@@ -48,11 +65,27 @@ export async function GET(request: Request, { params }: RouteParams) {
     });
 
     if (!event) {
+      console.log('[API] Event not found:', eventId);
       return NextResponse.json(
         { error: 'Event not found' },
         { status: 404 }
       );
     }
+
+    // Log detailed event data
+    console.log('[API] Event found with details:', {
+      id: event.id,
+      type: event.type,
+      status: event.status,
+      mediaCount: event.mediaItems.length,
+      tableCount: event.tables.length,
+      waitlistCount: event.waitingList.length,
+      waitlist: event.waitingList.map(p => ({
+        id: p.id,
+        name: p.name,
+        position: p.position
+      }))
+    });
 
     // If the event is ended, only allow access with authentication
     if (event.status === 'ENDED' && !session) {
@@ -167,6 +200,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       }),
       ...(data.tables && {
         tables: {
+          deleteMany: {},
           create: (data.tables as TableInput[]).map((table) => ({
             number: table.number,
             seats: {
@@ -178,15 +212,35 @@ export async function PATCH(request: Request, { params }: RouteParams) {
             }
           }))
         }
+      }),
+      ...(data.waitingList && {
+        waitingList: {
+          deleteMany: {},
+          create: (data.waitingList as WaitlistInput[]).map((player) => ({
+            name: player.name,
+            position: player.position,
+            addedAt: new Date()
+          }))
+        }
       })
     };
+
+    console.log('[API] Updating event with data:', {
+      ...updateData,
+      waitlistCount: data.waitingList?.length || 0,
+      waitlist: data.waitingList
+    });
 
     const updatedEvent = await prisma.event.update({
       where: { id: eventId },
       data: updateData,
       include: {
         mediaItems: true,
-        tables: true,
+        tables: {
+          include: {
+            seats: true
+          }
+        },
         waitingList: {
           orderBy: {
             position: 'asc'
@@ -198,7 +252,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     console.log('[API] Event updated successfully:', {
       id: updatedEvent.id,
       status: updatedEvent.status,
-      settings: updatedEvent.settings
+      settings: updatedEvent.settings,
+      waitlistCount: updatedEvent.waitingList.length,
+      waitlist: updatedEvent.waitingList
     });
 
     return NextResponse.json(updatedEvent);

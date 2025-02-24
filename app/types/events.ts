@@ -35,23 +35,37 @@ export interface CustomSettings {
 }
 
 export interface DisplaySettings {
-  aspectRatio: '16:9' | '4:3' | '21:9';
-  timerPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
-  mediaInterval: number; // in seconds
+  aspectRatio: "16:9" | "4:3" | "21:9";
+  timerPosition: "top-right" | "top-left" | "bottom-right" | "bottom-left";
+  mediaInterval: number; // Seconds between media switches
   showTimer: boolean;
-  theme: 'dark' | 'light';
+  theme: "dark" | "light";
   customColors: {
-    timerText: string; // hex color
-    timerBackground: string; // hex color
+    timerText: string; // Hex color
+    timerBackground: string; // Hex color
   };
 }
 
+/**
+ * Represents a media item in the event display system.
+ * Current implementation uses uppercase type values and url-based paths
+ * for compatibility with existing features and database schema.
+ * 
+ * Note: While PROMPT.md specifies lowercase types and 'path',
+ * we maintain 'IMAGE'/'VIDEO' and 'url' for system stability.
+ * Future updates should consider migrating to the PROMPT.md spec.
+ */
 export interface MediaItem {
+  /** Unique identifier for the media item */
   id: string;
+  /** Type of media - using uppercase for system compatibility */
   type: 'IMAGE' | 'VIDEO';
+  /** URL/path to the media resource */
   url: string;
+  /** Position in the display sequence */
   displayOrder: number;
-  duration?: number; // in seconds, for videos
+  /** Duration in seconds - only used for videos */
+  duration?: number;
 }
 
 export interface Seat {

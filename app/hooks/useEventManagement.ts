@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Event } from '@/app/types/events';
 import { isBasketballSettings } from '@/app/types/events';
+import { usePokerRoom } from '../contexts/PokerRoomContext';
+import { useEventPolling } from './useEventPolling';
 
 interface UseEventManagementProps {
   eventId: string;
@@ -15,35 +17,37 @@ interface TableSeat {
 }
 
 export function useEventManagement({ eventId, initialEvent }: UseEventManagementProps) {
-  const [event, setEvent] = useState<Event | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [event, setEvent] = useState<Event | null>(initialEvent || null);
+  const [isLoading, setIsLoading] = useState(!initialEvent);
   const [error, setError] = useState<string | null>(null);
+  const { setState: setPokerRoomState } = usePokerRoom();
+  
+  // Initialize polling for updates
+  useEventPolling(eventId);
 
-  const refreshEvent = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch(`/api/events/${eventId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch event');
-      }
-      const data = await response.json();
-      setEvent(data);
-      return data;
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to refresh event');
-      return null;
-    } finally {
-      setIsLoading(false);
+  // Effect to sync event state with PokerRoom context
+  useEffect(() => {
+    if (event) {
+      console.log('[EventManagement] Syncing event state with PokerRoom context:', {
+        tablesCount: event.tables.length,
+        waitlistCount: event.waitingList.length
+      });
+      setPokerRoomState({
+        tables: event.tables,
+        waitingList: event.waitingList,
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
     }
-  }, [eventId]);
+  }, [event, setPokerRoomState]);
 
+  // Initial event setup
   useEffect(() => {
     if (initialEvent) {
       setEvent(initialEvent);
-    } else {
-      refreshEvent();
     }
-  }, [initialEvent, refreshEvent]);
+  }, [initialEvent]);
 
   // Timer Controls
   const toggleTimer = useCallback(async () => {
@@ -78,67 +82,89 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
 
   // Waiting List Management
   const addPlayer = useCallback(async (name: string) => {
+    if (!event) return;
+
     try {
-      setIsLoading(true);
       const response = await fetch(`/api/events/${eventId}/waitinglist`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name: name.trim() })
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Failed to add player');
+        throw new Error(data.error || 'Failed to add player');
       }
 
-      const newPlayer = await response.json();
-      setEvent((prev) => {
-        if (!prev) return prev;
+      // First update the poker room context
+      setPokerRoomState({
+        tables: event.tables,
+        waitingList: [...event.waitingList, data].sort((a, b) => a.position - b.position),
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      // Then update the event state
+      setEvent(prev => {
+        if (!prev) return null;
         return {
           ...prev,
-          waitingList: [...prev.waitingList, newPlayer]
+          waitingList: [...prev.waitingList, data].sort((a, b) => a.position - b.position)
         };
       });
+
     } catch (error) {
+      console.error('[EventManagement] Error adding player:', error);
       setError(error instanceof Error ? error.message : 'Failed to add player');
-    } finally {
-      setIsLoading(false);
     }
-  }, [eventId]);
+  }, [event, eventId, setPokerRoomState]);
 
   const removePlayer = useCallback(async (playerId: string) => {
+    if (!event) return;
+
     try {
-      setIsLoading(true);
-      const response = await fetch(`/api/events/${eventId}/waitinglist`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ playerId })
+      const response = await fetch(`/api/events/${eventId}/waitinglist/${playerId}`, {
+        method: 'DELETE'
       });
 
       if (!response.ok) {
         throw new Error('Failed to remove player');
       }
 
-      setEvent((prev) => {
-        if (!prev) return prev;
+      // First update the poker room context
+      setPokerRoomState({
+        tables: event.tables,
+        waitingList: event.waitingList.filter(p => p.id !== playerId),
+        showRoomInfo: true,
+        isRoomManagementEnabled: true,
+        showWaitlistOnDisplay: true
+      });
+
+      // Then update the event state
+      setEvent(prev => {
+        if (!prev) return null;
         return {
           ...prev,
-          waitingList: prev.waitingList.filter((player) => player.id !== playerId)
+          waitingList: prev.waitingList.filter(p => p.id !== playerId)
         };
       });
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to remove player');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [eventId]);
 
-  const reorderWaitingList = useCallback(async (playerId: string, newPosition: number) => {
+    } catch (error) {
+      console.error('[EventManagement] Error removing player:', error);
+      setError(error instanceof Error ? error.message : 'Failed to remove player');
+    }
+  }, [event, eventId, setPokerRoomState]);
+
+  const reorderWaitlist = useCallback(async (playerId: string, newPosition: number) => {
     try {
+      console.log('Attempting to reorder waitlist:', { playerId, newPosition });
       setIsLoading(true);
+
+      // Make the API call to reorder the waitlist
       const response = await fetch(`/api/events/${eventId}/waitinglist`, {
         method: 'PATCH',
         headers: {
@@ -148,35 +174,30 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
       });
 
       if (!response.ok) {
-        throw new Error('Failed to reorder waiting list');
+        throw new Error('Failed to reorder waitlist');
       }
 
-      setEvent((prev) => {
-        if (!prev) return prev;
-        const player = prev.waitingList.find((p) => p.id === playerId);
-        if (!player) return prev;
+      // Fetch the updated event data to ensure we have the correct order
+      const eventResponse = await fetch(`/api/events/${eventId}`);
+      if (!eventResponse.ok) {
+        throw new Error('Failed to fetch updated event data');
+      }
 
-        const oldPosition = player.position;
-        const updatedWaitingList = prev.waitingList.map((p) => {
-          if (p.id === playerId) {
-            return { ...p, position: newPosition };
-          }
-          if (newPosition > oldPosition && p.position > oldPosition && p.position <= newPosition) {
-            return { ...p, position: p.position - 1 };
-          }
-          if (newPosition < oldPosition && p.position >= newPosition && p.position < oldPosition) {
-            return { ...p, position: p.position + 1 };
-          }
-          return p;
-        });
-
-        return {
-          ...prev,
-          waitingList: updatedWaitingList.sort((a, b) => a.position - b.position)
-        };
+      const updatedEvent = await eventResponse.json();
+      console.log('Updated event data after reorder:', {
+        waitlistLength: updatedEvent.waitingList?.length || 0,
+        waitlist: updatedEvent.waitingList
       });
+
+      // Update the local state with the fresh data
+      setEvent(updatedEvent);
+
+      // Return the updated waitlist for the UI to use
+      return updatedEvent.waitingList;
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to reorder waiting list');
+      console.error('Error reordering waitlist:', error);
+      setError(error instanceof Error ? error.message : 'Failed to reorder waitlist');
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -344,6 +365,68 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
     }
   }, [event, eventId]);
 
+  const assignSeat = useCallback(async (tableId: string, seatIndex: number) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/events/${eventId}/tables/${tableId}/seats/${seatIndex}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to assign seat');
+      }
+
+      const updatedTable = await response.json();
+      setEvent((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          tables: prev.tables.map((table) =>
+            table.id === tableId ? updatedTable : table
+          )
+        };
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to assign seat');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [eventId]);
+
+  const emptySeat = useCallback(async (tableId: string, seatIndex: number) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/events/${eventId}/tables/${tableId}/seats/${seatIndex}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to empty seat');
+      }
+
+      const updatedTable = await response.json();
+      setEvent((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          tables: prev.tables.map((table) =>
+            table.id === tableId ? updatedTable : table
+          )
+        };
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to empty seat');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [eventId]);
+
   return {
     event,
     isLoading,
@@ -351,12 +434,13 @@ export function useEventManagement({ eventId, initialEvent }: UseEventManagement
     toggleTimer,
     addPlayer,
     removePlayer,
-    reorderWaitingList,
+    reorderWaitlist,
     addTable,
     removeTable,
     updateTableSeats,
     updateScore,
-    endEvent,
-    refreshEvent
+    assignSeat,
+    emptySeat,
+    endEvent
   };
 } 

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { MediaItem } from '@/app/types';
+import { MediaItem } from '@/app/types/events';
 import { X, GripVertical } from 'lucide-react';
 import Image from 'next/image';
 import { v4 as uuidv4 } from 'uuid';
@@ -9,24 +9,72 @@ interface MediaSelectionStepProps {
   onCompleteAction: (mediaItems: MediaItem[]) => void;
 }
 
+/**
+ * Component for managing media items in the event setup process.
+ * Handles file uploads, media ordering, and preview display.
+ * 
+ * Implementation Notes:
+ * - Uses uppercase 'IMAGE'/'VIDEO' types for system compatibility
+ * - Maintains displayOrder for sequence management
+ * - Stores media state both locally and in MediaContext
+ */
 export default function MediaSelectionStep({ onCompleteAction }: MediaSelectionStepProps) {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const { storeMediaItems } = useMedia();
 
-  // Handle media upload
-  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    const newMediaItems: MediaItem[] = files.map((file, index) => ({
-      id: uuidv4(),
-      type: file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE',
-      url: URL.createObjectURL(file),
-      displayOrder: mediaItems.length + index + 1,
-      duration: file.type.startsWith('video/') ? undefined : 15,
-    }));
-    const updatedItems = [...mediaItems, ...newMediaItems];
-    setMediaItems(updatedItems);
-    storeMediaItems(updatedItems);
-    onCompleteAction(updatedItems);
+  /**
+   * Handles file selection and creates MediaItem entries.
+   * - Uploads files to the server
+   * - Gets permanent URLs for the files
+   * - Creates MediaItem entries with the permanent URLs
+   * - Maintains display order sequence
+   */
+  const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const files = Array.from(event.target.files || []);
+      if (files.length === 0) return;
+
+      setIsUploading(true);
+
+      // Create form data for upload
+      const formData = new FormData();
+      files.forEach(file => {
+        formData.append('files', file);
+      });
+
+      // Upload files to server
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload files');
+      }
+
+      const uploadedFiles = await response.json();
+
+      // Create media items with permanent URLs
+      const newMediaItems: MediaItem[] = uploadedFiles.map((file: any, index: number) => ({
+        id: uuidv4(),
+        type: file.type,
+        url: file.url,
+        displayOrder: mediaItems.length + index,
+        duration: file.type === 'VIDEO' ? undefined : 15,
+      }));
+
+      const updatedItems = [...mediaItems, ...newMediaItems];
+      setMediaItems(updatedItems);
+      storeMediaItems(updatedItems);
+      onCompleteAction(updatedItems);
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      alert('Failed to upload files. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   }, [mediaItems, storeMediaItems, onCompleteAction]);
 
   // Handle media reordering
@@ -61,12 +109,17 @@ export default function MediaSelectionStep({ onCompleteAction }: MediaSelectionS
             onChange={handleFileSelect}
             className="hidden"
             id="media-upload"
+            disabled={isUploading}
           />
           <label
             htmlFor="media-upload"
-            className="inline-flex items-center border border-[#2C2C2E] text-sm font-medium text-white bg-brand-primary hover:bg-brand-primary/90 px-4 py-2 rounded-lg transition-colors cursor-pointer"
+            className={`inline-flex items-center border border-[#2C2C2E] text-sm font-medium text-white ${
+              isUploading 
+                ? 'bg-brand-primary/50 cursor-not-allowed' 
+                : 'bg-brand-primary hover:bg-brand-primary/90 cursor-pointer'
+            } px-4 py-2 rounded-lg transition-colors`}
           >
-            +Add Media
+            {isUploading ? 'Uploading...' : '+Add Media'}
           </label>
         </div>
       </div>
@@ -105,7 +158,7 @@ export default function MediaSelectionStep({ onCompleteAction }: MediaSelectionS
                 {item.type.charAt(0).toUpperCase() + item.type.slice(1)} {index + 1}
               </div>
               <div className="text-text-secondary text-sm">
-                Duration: {item.type === 'VIDEO' ? 'Full length' : '15 seconds'}
+                Duration: {item.type === 'VIDEO' ? "Full length" : "15 seconds"}
               </div>
             </div>
             <button

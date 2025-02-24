@@ -32,17 +32,30 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       try {
         const savedState = localStorage.getItem('pokerRoomState');
-        console.log('PokerRoomContext - Loading initial state from localStorage:', savedState);
         if (savedState) {
           const parsedState = JSON.parse(savedState);
-          console.log('PokerRoomContext - Parsed initial state:', parsedState);
-          return parsedState;
+          // Only log invalid data that needs attention
+          if (Array.isArray(parsedState.waitingList)) {
+            const invalidPlayers = parsedState.waitingList.filter(
+              (player: Player) => !player.id || !player.name || typeof player.position !== 'number'
+            );
+            if (invalidPlayers.length > 0) {
+              console.error('PokerRoomContext - Found invalid players in waitlist:', invalidPlayers);
+            }
+          }
+
+          return {
+            tables: Array.isArray(parsedState.tables) ? parsedState.tables : [],
+            waitingList: Array.isArray(parsedState.waitingList) ? parsedState.waitingList : [],
+            showRoomInfo: parsedState.showRoomInfo ?? true,
+            isRoomManagementEnabled: parsedState.isRoomManagementEnabled ?? false,
+            showWaitlistOnDisplay: parsedState.showWaitlistOnDisplay ?? false,
+          };
         }
       } catch (error) {
         console.error('Error loading initial poker room state:', error);
       }
     }
-    console.log('PokerRoomContext - Using default initial state');
     return {
       tables: [],
       waitingList: [],
@@ -171,22 +184,7 @@ export function PokerRoomProvider({ children }: { children: React.ReactNode }) {
         addedAt: new Date().toISOString()
       };
 
-      // Log the exact player being added
-      console.log('PokerRoomContext - Adding new player to waitlist:', {
-        id: newPlayer.id,
-        name: newPlayer.name,
-        position: newPlayer.position,
-        currentWaitlistLength: prev.waitingList.length
-      });
-
       const updatedWaitlist = [...prev.waitingList, newPlayer];
-
-      // Verify the updated waitlist
-      console.log('PokerRoomContext - Updated waitlist:', updatedWaitlist.map(p => ({
-        id: p.id,
-        name: p.name,
-        position: p.position
-      })));
 
       return {
         ...prev,

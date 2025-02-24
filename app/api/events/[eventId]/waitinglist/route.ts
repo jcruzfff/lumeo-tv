@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { broadcastEventUpdate } from '../../ws/route';
 
 interface RouteParams {
   params: {
@@ -10,9 +11,18 @@ interface RouteParams {
 // Add a player to the waiting list
 export async function POST(request: Request, { params }: RouteParams) {
   try {
-    const { eventId } = params;
+    const eventId = await Promise.resolve(params.eventId);
     const { name } = await request.json();
+
     console.log('[Waitlist API] Adding player:', { eventId, name });
+
+    // Validate input
+    if (!name?.trim()) {
+      return NextResponse.json(
+        { error: 'Player name is required' },
+        { status: 400 }
+      );
+    }
 
     // Get the current highest position
     const lastPlayer = await prisma.player.findFirst({
@@ -23,20 +33,30 @@ export async function POST(request: Request, { params }: RouteParams) {
         position: 'desc'
       }
     });
-    console.log('[Waitlist API] Current last player:', lastPlayer);
 
-    const newPosition = (lastPlayer?.position ?? 0) + 1;
-    console.log('[Waitlist API] New position:', newPosition);
+    const nextPosition = (lastPlayer?.position ?? 0) + 1;
+    console.log('[Waitlist API] Calculated next position:', nextPosition);
 
+    // Create the new player
     const player = await prisma.player.create({
       data: {
-        name,
-        position: newPosition,
-        eventId
+        eventId,
+        name: name.trim(),
+        position: nextPosition,
+        addedAt: new Date()
       }
     });
-    console.log('[Waitlist API] Created player:', player);
 
+    // Get updated waitlist
+    const updatedWaitlist = await prisma.player.findMany({
+      where: { eventId },
+      orderBy: { position: 'asc' }
+    });
+
+    // Broadcast the update
+    broadcastEventUpdate(eventId, { waitingList: updatedWaitlist });
+
+    console.log('[Waitlist API] Created player:', player);
     return NextResponse.json(player);
   } catch (error) {
     console.error('[Waitlist API] Error adding player:', error);
@@ -50,48 +70,27 @@ export async function POST(request: Request, { params }: RouteParams) {
 // Remove a player from the waiting list
 export async function DELETE(request: Request, { params }: RouteParams) {
   try {
-    const { eventId } = params;
+    const eventId = params.eventId;
     const { playerId } = await request.json();
 
-    // Get the player's current position
-    const player = await prisma.player.findUnique({
-      where: {
-        id: playerId
-      }
-    });
-
-    if (!player) {
-      return NextResponse.json(
-        { error: 'Player not found' },
-        { status: 404 }
-      );
-    }
-
-    // Delete the player
     await prisma.player.delete({
       where: {
         id: playerId
       }
     });
 
-    // Update positions of remaining players
-    await prisma.player.updateMany({
-      where: {
-        eventId,
-        position: {
-          gt: player.position
-        }
-      },
-      data: {
-        position: {
-          decrement: 1
-        }
-      }
+    // Get updated waitlist
+    const updatedWaitlist = await prisma.player.findMany({
+      where: { eventId },
+      orderBy: { position: 'asc' }
     });
+
+    // Broadcast the update
+    broadcastEventUpdate(eventId, { waitingList: updatedWaitlist });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error removing player from waiting list:', error);
+    console.error('[Waitlist API] Error removing player:', error);
     return NextResponse.json(
       { error: 'Failed to remove player from waiting list' },
       { status: 500 }
@@ -163,6 +162,15 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         position: newPosition
       }
     });
+
+    // Get updated waitlist
+    const updatedWaitlist = await prisma.player.findMany({
+      where: { eventId },
+      orderBy: { position: 'asc' }
+    });
+
+    // Broadcast the update
+    broadcastEventUpdate(eventId, { waitingList: updatedWaitlist });
 
     return NextResponse.json({ success: true });
   } catch (error) {

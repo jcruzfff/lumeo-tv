@@ -50,26 +50,26 @@ export default function PokerTable({
   // Calculate positions for 10 spots (9 players + 1 dealer)
   const getPosition = (index: number, totalSpots: number = 10) => {
     // Start from the top (12 o'clock) and go clockwise
-    const angle = (index * 2 * Math.PI) / totalSpots
+    const angle = (index * 2 * Math.PI) / totalSpots - Math.PI / 2
     return {
-      top: `${50 - 35 * Math.cos(angle)}%`,
-      left: `${50 + 35 * Math.sin(angle)}%`,
+      top: `${50 + 40 * Math.sin(angle)}%`,
+      left: `${50 + 40 * Math.cos(angle)}%`,
     }
   }
 
   return (
     <TooltipProvider delayDuration={0}>
       <div className="relative w-full h-0 pb-[100%] z-0">
-        <div className="absolute inset-0 bg-green-600/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-xl">
-          <div className="w-[80%] h-[60%] bg-green-700/90 backdrop-blur-sm rounded-[100px] flex flex-col items-center justify-center border border-white/10">
+        <div className="absolute inset-0 bg-[#1B4D2E] backdrop-blur-sm rounded-full flex items-center justify-center shadow-xl border border-[#2C2C2E]">
+          <div className="w-[80%] h-[60%] bg-[#1B4D2E] backdrop-blur-sm rounded-[100px] flex flex-col items-center justify-center border border-[#2C2C2E]">
             <span className="text-white/90 text-base font-medium">Poker Table</span>
           </div>
 
           {/* Dealer Position (D) */}
           <div
-            className="absolute w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold bg-dark-background/90 text-text-primary border border-dark-border/20 shadow-lg backdrop-blur-sm z-10"
+            className="absolute w-10 h-10 rounded-full flex items-center justify-center text-2xl font-bold bg-dark-background/90 text-white border-2 border-white shadow-lg backdrop-blur-sm z-10"
             style={{
-              top: "15%",
+              top: "10%",
               left: "50%",
               transform: "translate(-50%, -50%)",
             }}
@@ -87,10 +87,10 @@ export default function PokerTable({
               <Tooltip key={seat.id}>
                 <TooltipTrigger asChild>
                   <button
-                    className={`absolute w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all duration-200 shadow-lg backdrop-blur-sm z-20 ${
+                    className={`absolute w-10 h-10 rounded-full flex items-center justify-center text-sm transition-all duration-200 shadow-lg backdrop-blur-sm z-20 ${
                       isOccupied
-                        ? "bg-brand-primary/90 text-white border border-white/10 hover:bg-status-error/90"
-                        : "bg-dark-surface/90 border border-dark-border/20 hover:bg-dark-surface-lighter/90"
+                        ? "bg-brand-primary text-white border-2 border-white hover:bg-status-error"
+                        : "bg-dark-surface/90 border-2 border-[#2C2C2E] hover:bg-dark-surface-lighter/90 hover:border-white/50"
                     }`}
                     style={{
                       ...position,
@@ -101,7 +101,7 @@ export default function PokerTable({
                     {isOccupied ? (
                       index + 1
                     ) : (
-                      <UserPlus className="h-3 w-3 text-text-secondary" />
+                      <UserPlus className="h-4 w-4 text-text-secondary" />
                     )}
                   </button>
                 </TooltipTrigger>

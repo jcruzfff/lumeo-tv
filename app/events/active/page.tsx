@@ -58,8 +58,10 @@ export default function ActiveEvents() {
           throw new Error('Failed to fetch events');
         }
         const data = await response.json();
-        // Filter only active events
-        const activeEvents = data.filter((event: Event) => event.status === 'ACTIVE');
+        // Filter for both active and scheduled events
+        const activeEvents = data.filter((event: Event) => 
+          event.status === 'ACTIVE' || event.status === 'SCHEDULED'
+        );
         setEvents(activeEvents);
       } catch (error) {
         console.error('Error fetching events:', error);

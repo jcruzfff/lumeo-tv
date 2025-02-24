@@ -48,7 +48,6 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
     }
   }, [eventId, setIsRoomManagementEnabled, setShowWaitlistOnDisplay]);
 
-  // Memoize handleSettingsChange with useCallback
   const handleSettingsChange = useCallback(async (enabled: boolean, showWaitlist: boolean) => {
     if (!eventId) {
       console.error('RoomManagementStep - Cannot update settings: No event ID available');
@@ -64,12 +63,6 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
     // Update local state through the context
     setIsRoomManagementEnabled(enabled);
     setShowWaitlistOnDisplay(showWaitlist);
-    
-    // Only call onCompleteAction for user-initiated changes
-    onCompleteAction({
-      isRoomManagementEnabled: enabled,
-      showWaitlistOnDisplay: showWaitlist
-    });
 
     try {
       // Update event settings in the database
@@ -101,7 +94,7 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
     } catch (error) {
       console.error('RoomManagementStep - Error updating settings:', error);
     }
-  }, [eventId, onCompleteAction, setIsRoomManagementEnabled, setShowWaitlistOnDisplay]);
+  }, [eventId, setIsRoomManagementEnabled, setShowWaitlistOnDisplay]);
 
   const handleAddPlayer = (name: string) => {
     if (!eventId) {
@@ -115,12 +108,14 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
       return;
     }
 
-    console.log('RoomManagementStep - Adding player:', {
-      eventId,
-      name: trimmedName
-    });
-
     addToWaitlist(eventId, trimmedName);
+  };
+
+  const handleContinue = () => {
+    onCompleteAction({
+      isRoomManagementEnabled,
+      showWaitlistOnDisplay
+    });
   };
 
   return (
@@ -199,6 +194,16 @@ export default function RoomManagementStep({ onCompleteAction }: RoomManagementS
           />
         </div>
       )}
+
+      {/* Continue Button */}
+      <div className="mt-8 flex justify-end">
+        <Button 
+          onClick={handleContinue}
+          className="bg-brand-primary hover:bg-brand-primary/90"
+        >
+          Continue
+        </Button>
+      </div>
     </div>
   );
 } 

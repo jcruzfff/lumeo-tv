@@ -15,6 +15,10 @@ async function resetDatabase() {
     await prisma.player.deleteMany();
     console.log('✓ Cleared Players');
     
+    // Delete Seats before Tables (they reference Tables)
+    await prisma.seat.deleteMany();
+    console.log('✓ Cleared Seats');
+    
     // Delete Tables (they reference Events)
     await prisma.table.deleteMany();
     console.log('✓ Cleared Tables');

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/app/api/auth/auth.config'
 import crypto from 'crypto'
+import { Prisma } from '@prisma/client'
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 
@@ -10,8 +11,9 @@ export const dynamic = 'force-dynamic'
 
 interface MediaItemInput {
   type: 'video' | 'image'
-  path: string
+  url: string
   duration?: number
+  displayOrder?: number
 }
 
 export async function POST(request: Request) {
@@ -40,7 +42,8 @@ export async function POST(request: Request) {
       type: body.type,
       status: body.status,
       mediaItemsCount: body.mediaItems?.length || 0,
-      hasRoomManagement: !!body.roomManagement
+      hasSettings: !!body.settings,
+      settingsKeys: body.settings ? Object.keys(body.settings as Record<string, unknown>) : []
     })
 
     // Validate required fields
@@ -56,6 +59,13 @@ export async function POST(request: Request) {
     if (!validTypes.includes(body.type)) {
       console.error(`[${requestId}] Invalid event type:`, body.type)
       return NextResponse.json({ error: 'Invalid event type' }, { status: 400 })
+    }
+
+    // Validate settings based on event type
+    const settings = body.settings as Prisma.JsonObject
+    if (body.type === 'POKER' && (!settings.timer || !settings.display)) {
+      console.error(`[${requestId}] Invalid poker settings:`, settings)
+      return NextResponse.json({ error: 'Invalid poker settings: missing timer or display settings' }, { status: 400 })
     }
 
     // Find or create user
@@ -102,13 +112,13 @@ export async function POST(request: Request) {
         name: body.name,
         type: body.type,
         status: body.status,
-        settings: body.settings,
+        settings: settings,
         startedAt: body.startedAt || new Date(),
         mediaItems: {
-          create: body.mediaItems?.map((item: MediaItemInput, index: number) => ({
+          create: body.mediaItems?.map((item: MediaItemInput) => ({
             type: item.type === 'video' ? 'VIDEO' : 'IMAGE',
-            url: item.path,
-            displayOrder: index + 1,
+            url: item.url,
+            displayOrder: item.displayOrder || 1,
             duration: item.duration
           })) || []
         },
@@ -117,7 +127,9 @@ export async function POST(request: Request) {
         creatorId: eventUser.id
       },
       include: {
-        mediaItems: true
+        mediaItems: true,
+        tables: true,
+        waitingList: true
       }
     })
 
@@ -126,7 +138,8 @@ export async function POST(request: Request) {
       name: event.name,
       type: event.type,
       creatorId: event.creatorId,
-      mediaItemsCount: event.mediaItems.length
+      mediaItemsCount: event.mediaItems.length,
+      settingsKeys: Object.keys(settings)
     })
 
     return NextResponse.json(event)

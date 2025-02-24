@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { X, GripVertical } from "lucide-react"
@@ -69,95 +69,61 @@ function SortableItem({ player, index, onRemove }: SortableItemProps) {
   )
 }
 
-export default function WaitingList({ players, onAddPlayerAction, onRemovePlayerAction, onReorderPlayersAction }: WaitingListProps) {
-  const [newPlayer, setNewPlayer] = useState("")
-  const [selectedPlayerIndex, setSelectedPlayerIndex] = useState<number | null>(null)
-  const [showRemoveDialog, setShowRemoveDialog] = useState(false)
-  const [showClearListDialog, setShowClearListDialog] = useState(false)
-
-  useEffect(() => {
-    console.log('WaitingList Component - Current players:', players.map(p => ({
-      id: p.id,
-      name: p.name,
-      position: p.position
-    })));
-  }, [players]);
-
-  useEffect(() => {
-    const invalidPlayers = players.filter(p => !p.name);
-    if (invalidPlayers.length > 0) {
-      console.error('WaitingList Component - Found players with missing names:', invalidPlayers);
-    }
-  }, [players]);
+export default function WaitingList({
+  players,
+  onAddPlayerAction,
+  onRemovePlayerAction,
+  onReorderPlayersAction
+}: WaitingListProps) {
+  const [playerName, setPlayerName] = useState('');
+  const [selectedPlayerIndex, setSelectedPlayerIndex] = useState<number | null>(null);
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false);
+  const [showClearDialog, setShowClearDialog] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
-  )
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmedName = newPlayer.trim();
+    e.preventDefault();
+    const trimmedName = playerName.trim();
     if (trimmedName) {
-      console.log('WaitingList Component - Adding new player:', {
-        name: trimmedName,
-        currentPlayersCount: players.length
-      });
       onAddPlayerAction(trimmedName);
-      setNewPlayer("");
+      setPlayerName('');
     }
-  }
+  };
 
   const handleRemoveClick = (index: number) => {
-    console.log('WaitingList Component - Initiating remove for player at index:', index);
-    setSelectedPlayerIndex(index)
-    setShowRemoveDialog(true)
-  }
+    setSelectedPlayerIndex(index);
+    setShowRemoveDialog(true);
+  };
 
   const handleConfirmRemove = () => {
     if (selectedPlayerIndex !== null) {
-      console.log('WaitingList Component - Confirming remove for player at index:', selectedPlayerIndex);
-      onRemovePlayerAction(selectedPlayerIndex)
+      onRemovePlayerAction(selectedPlayerIndex);
     }
-    setShowRemoveDialog(false)
-    setSelectedPlayerIndex(null)
-  }
+    setShowRemoveDialog(false);
+    setSelectedPlayerIndex(null);
+  };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
+    const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      console.log('WaitingList Component - Starting reorder:', {
-        activeId: active.id,
-        overId: over.id,
-        currentPlayers: players
-      });
-
-      const oldIndex = players.findIndex(p => p.id === active.id)
-      const newIndex = players.findIndex(p => p.id === over.id)
+      const oldIndex = players.findIndex(p => p.id === active.id);
+      const newIndex = players.findIndex(p => p.id === over.id);
       const newOrder = arrayMove(players, oldIndex, newIndex)
+        .map((player, idx) => ({ ...player, position: idx + 1 }));
 
-      console.log('WaitingList Component - Calculated new order:', {
-        oldIndex,
-        newIndex,
-        newOrder
-      });
-
-      // Update the display immediately
-      onReorderPlayersAction(newOrder)
-
-      // Log the final state
-      console.log('WaitingList Component - Reorder complete:', {
-        finalOrder: newOrder.map((p, idx) => ({
-          position: idx + 1,
-          name: p.name,
-          id: p.id
-        }))
-      });
+      onReorderPlayersAction(newOrder);
     }
-  }
+  };
+
+  // Sort players by position before rendering
+  const sortedPlayers = [...players].sort((a, b) => a.position - b.position);
 
   return (
     <div className="bg-dark-surface backdrop-blur-sm border border-[#2C2C2E] p-6 rounded-xl shadow-lg">
@@ -171,18 +137,18 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
       <form onSubmit={handleSubmit} className="mb-4">
         <Input
           type="text"
-          value={newPlayer}
-          onChange={(e) => setNewPlayer(e.target.value)}
+          value={playerName}
+          onChange={(e) => setPlayerName(e.target.value)}
           placeholder="Player name"
           className="w-full bg-dark-surface border-dark-border text-text-primary placeholder:text-text-tertiary focus:border-brand-primary"
         />
       </form>
 
-      <div className="flex justify-between items-center mb-2 ">
-        <p className="text-sm font-semibold  text-text-secondary">Total: {players.length}</p>
-        {players.length > 0 && (
+      <div className="flex justify-between items-center mb-2">
+        <p className="text-sm font-semibold text-text-secondary">Total: {sortedPlayers.length}</p>
+        {sortedPlayers.length > 0 && (
           <button
-            onClick={() => setShowClearListDialog(true)}
+            onClick={() => setShowClearDialog(true)}
             className="text-sm text-status-error hover:text-status-error/80 transition-colors"
           >
             Clear list
@@ -191,9 +157,9 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
       </div>
       
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={players.map(p => p.id)} strategy={verticalListSortingStrategy}>
-          <ul className="space-y-1 max-h-[820px]  overflow-y-auto scrollbar-thin scrollbar-thumb-dark-border/20 scrollbar-track-dark-surface pr-2">
-            {players.map((player, index) => (
+        <SortableContext items={sortedPlayers.map(p => p.id)} strategy={verticalListSortingStrategy}>
+          <ul className="space-y-1 max-h-[820px] overflow-y-auto scrollbar-thin scrollbar-thumb-dark-border/20 scrollbar-track-dark-surface pr-2">
+            {sortedPlayers.map((player, index) => (
               <SortableItem 
                 key={player.id} 
                 player={player} 
@@ -222,7 +188,7 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showClearListDialog} onOpenChange={setShowClearListDialog}>
+      <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
         <AlertDialogContent className="bg-dark-card border border-dark-border">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-text-primary">Clear Waiting List</AlertDialogTitle>
@@ -235,7 +201,7 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
             <AlertDialogAction 
               onClick={() => {
                 onReorderPlayersAction([]);
-                setShowClearListDialog(false);
+                setShowClearDialog(false);
               }} 
               className="bg-status-error hover:bg-status-error/90"
             >
@@ -245,5 +211,5 @@ export default function WaitingList({ players, onAddPlayerAction, onRemovePlayer
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 } 

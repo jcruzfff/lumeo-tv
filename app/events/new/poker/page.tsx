@@ -8,10 +8,36 @@ import MediaSelectionStep from '@/app/events/new/poker/components/MediaSelection
 import DisplaySettingsStep from '@/app/events/new/poker/components/DisplaySettingsStep';
 import ReviewSubmitStep from '@/app/events/new/poker/components/ReviewSubmitStep';
 import { BlindLevel, MediaItem } from '@/app/types';
-import { useTimer } from '@/app/contexts/TimerContext';
-import { useMedia } from '@/app/contexts/MediaContext';
-import { usePokerRoom } from '@/app/contexts/PokerRoomContext';
 import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
+
+interface EventData {
+  blindLevels: BlindLevel[];
+  displaySettings?: {
+    aspectRatio: '16:9' | '4:3' | '21:9';
+    timerPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+    mediaInterval: number;
+    showTimer: boolean;
+    theme: 'dark' | 'light';
+    customColors: {
+      timerText: string;
+      timerBackground: string;
+    };
+  };
+  mediaItems: MediaItem[];
+  roomManagement?: {
+    isRoomManagementEnabled: boolean;
+    showWaitlistOnDisplay: boolean;
+  };
+  settings?: {
+    isRunning: boolean;
+    currentLevel: number;
+    timeRemaining: number;
+    levels: BlindLevel[];
+    breakDuration: number;
+    totalPlayTime: number;
+  };
+}
 
 const steps = [
   { id: 1, name: 'Set Blind Levels', href: '#' },
@@ -27,34 +53,13 @@ export default function NewPokerEvent() {
   const [currentStep, setCurrentStep] = useState(1);
   const [eventId, setEventId] = useState<string | null>(null);
   const hasCreatedEvent = useRef(false);
-  const [eventData, setEventData] = useState<{
-    blindLevels?: BlindLevel[];
-    roomManagement?: {
-      isRoomManagementEnabled: boolean;
-      showWaitlistOnDisplay: boolean;
-    };
-    mediaItems?: MediaItem[];
-    displaySettings?: {
-      aspectRatio: '16:9' | '4:3' | '21:9';
-      timerPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
-      mediaInterval: number;
-      showTimer: boolean;
-      theme: 'dark' | 'light';
-      customColors: {
-        timerText: string;
-        timerBackground: string;
-      };
-    };
-  }>({
-    roomManagement: {
-      isRoomManagementEnabled: false,
-      showWaitlistOnDisplay: false
-    }
+  const [eventData, setEventData] = useState<EventData>({
+    blindLevels: [],
+    displaySettings: undefined,
+    mediaItems: []
   });
+  const [isSaving, setIsSaving] = useState(false);
 
-  const { setActiveTimer, setPokerState } = useTimer();
-  const { storeMediaItems } = useMedia();
-  const { tables } = usePokerRoom();
   const router = useRouter();
 
   // Create event when component mounts
@@ -90,7 +95,24 @@ export default function NewPokerEvent() {
               timeRemaining: 0,
               levels: [],
               isRoomManagementEnabled: false,
-              showWaitlistOnDisplay: false
+              showWaitlistOnDisplay: false,
+              timer: {
+                isRunning: false,
+                currentLevel: 0,
+                timeRemaining: 0,
+                levels: []
+              },
+              display: {
+                aspectRatio: '16:9',
+                timerPosition: 'top-right',
+                mediaInterval: 15,
+                showTimer: true,
+                theme: 'dark',
+                customColors: {
+                  timerText: '#FFFFFF',
+                  timerBackground: '#000000'
+                }
+              }
             }
           })
         });
@@ -174,32 +196,29 @@ export default function NewPokerEvent() {
     }
   };
 
-  const handleRoomManagementComplete = async (roomSettings: { 
-    isRoomManagementEnabled: boolean; 
-    showWaitlistOnDisplay: boolean 
-  }) => {
-    if (!eventId) return;
+  const handleRoomManagementComplete = (roomSettings: { isRoomManagementEnabled: boolean; showWaitlistOnDisplay: boolean }) => {
+    console.log('[RoomManagementComplete] Received settings:', roomSettings);
+    
+    // Get current poker room state
+    const pokerRoomState = localStorage.getItem('pokerRoomState');
+    const currentState = pokerRoomState ? JSON.parse(pokerRoomState) : { tables: [], waitingList: [] };
+    
+    // Update event data with room management settings
+    setEventData(prev => ({
+      ...prev,
+      roomManagement: roomSettings
+    }));
 
-    setEventData({ ...eventData, roomManagement: roomSettings });
+    // Store updated state in localStorage
+    localStorage.setItem('pokerRoomState', JSON.stringify({
+      ...currentState,
+      showRoomInfo: true,
+      isRoomManagementEnabled: roomSettings.isRoomManagementEnabled,
+      showWaitlistOnDisplay: roomSettings.showWaitlistOnDisplay
+    }));
 
-    // Update event settings in database
-    try {
-      const response = await fetch(`/api/events/${eventId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          roomManagement: roomSettings
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update room management settings');
-      }
-    } catch (error) {
-      console.error('Error updating room management settings:', error);
-    }
+    console.log('[RoomManagementComplete] Updated event data and localStorage');
+    handleNextStep();
   };
 
   const handleMediaComplete = async (mediaItems: MediaItem[]) => {
@@ -249,23 +268,43 @@ export default function NewPokerEvent() {
 
     setEventData({ ...eventData, displaySettings });
 
+    // Store display settings in localStorage
+    try {
+      console.log('[Display] Storing display settings in localStorage:', displaySettings);
+      localStorage.setItem('displaySettings', JSON.stringify(displaySettings));
+    } catch (error) {
+      console.error('Error storing display settings:', error);
+    }
+
     // Update event settings in database
     try {
+      console.log('[Display] Updating display settings:', {
+        eventId,
+        displaySettings,
+        currentEventData: eventData
+      });
+
       const response = await fetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          displaySettings
+          displaySettings,
+          settings: eventData.settings // Include current event settings
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update display settings');
+        const errorData = await response.json();
+        console.error('API Error:', errorData);
+        throw new Error(errorData.error || 'Failed to update display settings');
       }
+
+      console.log('[Display] Settings updated successfully');
     } catch (error) {
       console.error('Error updating display settings:', error);
+      throw error; // Re-throw to handle in the UI
     }
   };
 
@@ -286,129 +325,96 @@ export default function NewPokerEvent() {
     }
   };
 
-  const handleLaunchLumeo = async () => {
+  const handleSaveEvent = async () => {
     try {
-      if (!eventId || !eventData.blindLevels) {
-        throw new Error('Event ID or blind levels not configured');
+      if (!eventId) {
+        throw new Error('Event ID is required');
       }
 
-      // Create initial poker state
+      if (!eventData.blindLevels) {
+        throw new Error('Blind levels are required');
+      }
+
+      setIsSaving(true);
+      toast.loading('Saving event...');
+
+      // Log the current state before saving
+      console.log('[SaveEvent] Current event data:', {
+        eventId,
+        blindLevels: eventData.blindLevels,
+        mediaItems: eventData.mediaItems,
+        roomManagement: eventData.roomManagement,
+        displaySettings: eventData.displaySettings
+      });
+
+      // Get current poker room state from localStorage
+      const pokerRoomState = localStorage.getItem('pokerRoomState');
+      console.log('[SaveEvent] Current poker room state from localStorage:', pokerRoomState ? JSON.parse(pokerRoomState) : null);
+
+      // Create poker settings with timer initially stopped
       const pokerSettings = {
-        isRunning: true,
+        isRunning: false,
+        levels: eventData.blindLevels.map((level: BlindLevel) => ({
+          smallBlind: level.smallBlind,
+          bigBlind: level.bigBlind,
+          duration: level.duration,
+        })),
         currentLevel: 0,
         timeRemaining: eventData.blindLevels[0].duration * 60,
-        levels: eventData.blindLevels,
         breakDuration: 0,
-        totalPlayTime: eventData.blindLevels.reduce((total, level) => total + level.duration, 0)
+        totalPlayTime: 0,
       };
 
-      console.log('[Launch] Activating poker event with settings:', {
-        eventName,
-        type: 'POKER',
-        settings: pokerSettings,
-        mediaItemsCount: eventData.mediaItems?.length,
-        roomManagement: eventData.roomManagement
-      });
+      // Get tables and waitlist from poker room state
+      const roomState = pokerRoomState ? JSON.parse(pokerRoomState) : { tables: [], waitingList: [] };
+      console.log('[SaveEvent] Room state to be saved:', roomState);
 
-      console.log('[Launch] Current table state before activation:', {
-        tableCount: tables.length,
-        tables: tables.map(table => ({
-          id: table.id,
-          seatCount: table.seats.length,
-          occupiedSeats: table.seats.filter(seat => seat !== null).length,
-          seats: table.seats
-        }))
-      });
-
-      // Convert tables to the correct format for the API
-      const formattedTables = tables.map(table => ({
-        id: table.id,
-        eventId: table.eventId,
-        number: table.number,
-        seats: table.seats.map((seat) => ({
-          id: seat.id,
-          position: seat.position,
-          playerId: seat.playerId,
-          playerName: seat.playerName,
-          createdAt: seat.createdAt
-        })),
-        createdAt: table.createdAt
-      }));
-
-      console.log('[Launch] Formatted tables for API:', formattedTables);
-
-      // Update event status to ACTIVE and set final settings
+      // Save event with SCHEDULED status
       const response = await fetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          status: 'ACTIVE',
-          startedAt: new Date().toISOString(),
-          name: eventName,
+          status: 'SCHEDULED',
           settings: pokerSettings,
+          displaySettings: eventData.displaySettings || {
+            aspectRatio: '16:9',
+            timerPosition: 'top-right',
+            mediaInterval: 15,
+            showTimer: true,
+            theme: 'dark',
+            customColors: {
+              timerText: '#FFFFFF',
+              timerBackground: '#000000',
+            },
+          },
+          tables: roomState.tables || [],
+          waitingList: roomState.waitingList || [],
           mediaItems: eventData.mediaItems || [],
-          displaySettings: eventData.displaySettings,
-          roomManagement: eventData.roomManagement,
-          tables: formattedTables
-        })
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to activate event');
+        throw new Error('Failed to save event');
       }
 
-      const activatedEvent = await response.json();
-      console.log('[Launch] Event activated with tables:', {
-        eventId: activatedEvent.id,
-        tableCount: activatedEvent.tables?.length,
-        tables: activatedEvent.tables
-      });
+      const savedEvent = await response.json();
+      console.log('[SaveEvent] Event saved successfully:', savedEvent);
 
-      // Initialize poker room state with the current table configuration
-      const initialPokerRoomState = {
-        tables: tables.map(table => ({
-          id: table.id,
-          seats: table.seats.map(seat => seat ? { ...seat } : null)
-        })),
-        waitingList: [],
-        showRoomInfo: true,
-        isRoomManagementEnabled: eventData.roomManagement?.isRoomManagementEnabled ?? false,
-        showWaitlistOnDisplay: eventData.roomManagement?.showWaitlistOnDisplay ?? false
-      };
+      toast.dismiss();
+      toast.success('Event saved successfully!');
 
-      console.log('[Launch] Initializing poker room state:', {
-        tableCount: initialPokerRoomState.tables.length,
-        tables: initialPokerRoomState.tables,
-        roomManagement: {
-          isEnabled: initialPokerRoomState.isRoomManagementEnabled,
-          showWaitlist: initialPokerRoomState.showWaitlistOnDisplay
-        }
-      });
-
-      localStorage.setItem('pokerRoomState', JSON.stringify(initialPokerRoomState));
-
-      // Initialize timer state
-      setActiveTimer('poker');
-      setPokerState(pokerSettings);
-
-      // Initialize media state
-      if (eventData.mediaItems) {
-        storeMediaItems(eventData.mediaItems);
-      }
-
-      // Store display settings
-      if (eventData.displaySettings) {
-        localStorage.setItem('displaySettings', JSON.stringify(eventData.displaySettings));
-      }
-
-      // Navigate to event management page
-      router.push(`/events/active/${eventId}`);
-
+      // Navigate to active events page after a short delay
+      setTimeout(() => {
+        router.push('/events/active');
+      }, 1000);
     } catch (error) {
-      console.error('[Launch] Error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to launch event');
+      console.error('[SaveEvent] Error saving event:', error);
+      toast.dismiss();
+      toast.error(error instanceof Error ? error.message : 'Failed to save event');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -426,12 +432,41 @@ export default function NewPokerEvent() {
           selectedMedia={eventData.mediaItems || []}
         />;
       case 5:
-        return <ReviewSubmitStep 
-          eventName={eventName}
-          blindLevels={eventData.blindLevels || []}
-          roomManagement={eventData.roomManagement || { isRoomManagementEnabled: false, showWaitlistOnDisplay: false }}
-          mediaItems={eventData.mediaItems || []}
-          displaySettings={eventData.displaySettings || {
+        // Log all state before rendering review step
+        console.log('[Review] Current state before review:', {
+          eventId,
+          eventName,
+          eventData,
+          localStorage: {
+            pokerRoomState: localStorage.getItem('pokerRoomState'),
+            displaySettings: localStorage.getItem('displaySettings'),
+            activeEventId: localStorage.getItem('activeEventId')
+          }
+        });
+
+        // Get current poker room state from localStorage
+        const pokerRoomState = localStorage.getItem('pokerRoomState');
+        const roomState = pokerRoomState ? JSON.parse(pokerRoomState) : { tables: [], waitingList: [] };
+        
+        console.log('[Review] Room state from localStorage:', {
+          raw: pokerRoomState,
+          parsed: roomState,
+          tables: roomState.tables || [],
+          waitingList: roomState.waitingList || [],
+          isRoomManagementEnabled: roomState.isRoomManagementEnabled,
+          showWaitlistOnDisplay: roomState.showWaitlistOnDisplay
+        });
+
+        // Log the props being passed to ReviewSubmitStep
+        const reviewProps = {
+          eventName,
+          blindLevels: eventData.blindLevels,
+          roomManagement: eventData.roomManagement || {
+            isRoomManagementEnabled: roomState.isRoomManagementEnabled || false,
+            showWaitlistOnDisplay: roomState.showWaitlistOnDisplay || false
+          },
+          mediaItems: eventData.mediaItems,
+          displaySettings: eventData.displaySettings || {
             aspectRatio: '16:9',
             timerPosition: 'top-right',
             mediaInterval: 15,
@@ -441,10 +476,20 @@ export default function NewPokerEvent() {
               timerText: '#FFFFFF',
               timerBackground: '#000000',
             },
-          }}
-        />;
+          },
+          tables: roomState.tables || [],
+          waitingList: roomState.waitingList || []
+        };
+
+        console.log('[Review] Props being passed to ReviewSubmitStep:', reviewProps);
+        
+        return (
+          <ReviewSubmitStep
+            {...reviewProps}
+          />
+        );
       default:
-        return <div>Step {currentStep} content coming soon...</div>;
+        return null;
     }
   };
 
@@ -543,14 +588,39 @@ export default function NewPokerEvent() {
             {renderStepContent()}
           </div>
 
-          {/* Launch Button */}
+          {/* Save Button */}
           {currentStep === 5 && (
             <div className="mt-12">
               <button
-                onClick={handleLaunchLumeo}
-                className="w-full max-w-md mx-auto block px-8 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-medium rounded-lg transition-colors"
+                onClick={handleSaveEvent}
+                disabled={isSaving}
+                className={`w-full max-w-md mx-auto block px-8 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-medium rounded-lg transition-all ${
+                  isSaving ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
               >
-                Launch Lumeo
+                {isSaving ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle 
+                        className="opacity-25" 
+                        cx="12" 
+                        cy="12" 
+                        r="10" 
+                        stroke="currentColor" 
+                        strokeWidth="4"
+                        fill="none"
+                      />
+                      <path 
+                        className="opacity-75" 
+                        fill="currentColor" 
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    Saving...
+                  </div>
+                ) : (
+                  'Save & Continue'
+                )}
               </button>
             </div>
           )}

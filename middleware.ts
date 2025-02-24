@@ -3,6 +3,11 @@ import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 export async function middleware(req: NextRequest) {
+  // Skip WebSocket requests
+  if (req.nextUrl.pathname === '/api/ws') {
+    return NextResponse.next();
+  }
+
   const token = await getToken({ req });
   const isAuthPage = req.nextUrl.pathname.startsWith('/auth');
   const isApiAuthRoute = req.nextUrl.pathname.startsWith('/api/auth');

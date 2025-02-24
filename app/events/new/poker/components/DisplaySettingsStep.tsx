@@ -1,26 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Monitor, Tv, Clock, Eye } from 'lucide-react';
-import { MediaItem } from '@/app/types';
+import { MediaItem, DisplaySettings } from '@/app/types/events';
 import Image from 'next/image';
-
-interface DisplaySettings {
-  aspectRatio: '16:9' | '4:3' | '21:9';
-  timerPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
-  mediaInterval: number;
-  showTimer: boolean;
-  theme: 'dark' | 'light';
-  customColors: {
-    timerText: string;
-    timerBackground: string;
-  };
-}
+import { useMedia } from '@/app/contexts/MediaContext';
 
 interface DisplaySettingsStepProps {
   onCompleteAction: (settings: DisplaySettings) => void;
   selectedMedia: MediaItem[];
 }
 
+/**
+ * Component for configuring display settings for the event timer and media.
+ * Handles aspect ratio, timer position, and media display configuration.
+ * Ensures settings are properly stored for display launch.
+ */
 export default function DisplaySettingsStep({ onCompleteAction, selectedMedia }: DisplaySettingsStepProps) {
+  const { storeMediaItems } = useMedia();
   const [settings, setSettings] = useState<DisplaySettings>({
     aspectRatio: '16:9',
     timerPosition: 'top-right',
@@ -33,34 +28,81 @@ export default function DisplaySettingsStep({ onCompleteAction, selectedMedia }:
     },
   });
 
-  const handleSettingChange = <K extends keyof DisplaySettings>(key: K, value: DisplaySettings[K]) => {
+  // Ensure media items are properly stored in context
+  useEffect(() => {
+    if (selectedMedia.length > 0) {
+      console.log('Storing media items in context:', selectedMedia);
+      storeMediaItems(selectedMedia);
+    }
+  }, [selectedMedia, storeMediaItems]);
+
+  /**
+   * Handles changes to display settings while validating and storing updates
+   */
+  const handleSettingChange = useCallback(<K extends keyof DisplaySettings>(key: K, value: DisplaySettings[K]) => {
+    console.log(`Updating display setting: ${String(key)} =`, value);
+    
     const newSettings = { ...settings, [key]: value };
+    
+    // Validate media interval
+    if (key === 'mediaInterval') {
+      const interval = value as number;
+      if (interval < 5) {
+        console.warn('Media interval too low, setting to minimum (5s)');
+        newSettings.mediaInterval = 5;
+      } else if (interval > 300) {
+        console.warn('Media interval too high, setting to maximum (300s)');
+        newSettings.mediaInterval = 300;
+      }
+    }
+
     setSettings(newSettings);
     onCompleteAction(newSettings);
-  };
+  }, [settings, onCompleteAction]);
 
-  // Preview content with smaller size
+  /**
+   * Validates media item for preview display
+   */
+  const validateMediaItem = useCallback((item: MediaItem) => {
+    if (!item.url) {
+      console.error('Invalid media item: missing URL');
+      return false;
+    }
+    if (item.type !== 'IMAGE' && item.type !== 'VIDEO') {
+      console.error('Invalid media item: incorrect type', item.type);
+      return false;
+    }
+    return true;
+  }, []);
+
+  // Preview content with error handling
   const previewContent = (
     <div className="relative">
-      {/* Container that maintains 16:9 as base ratio */}
       <div className="relative w-full aspect-video overflow-hidden">
-        {/* Media Content Container */}
         <div className="absolute inset-0">
           {selectedMedia.length > 0 ? (
             <div className="absolute inset-0">
-              {selectedMedia[0].type === 'image' ? (
-                <Image 
-                  src={selectedMedia[0].path} 
-                  alt="Preview"
-                  fill
-                  className="object-contain"
-                  unoptimized
-                />
+              {validateMediaItem(selectedMedia[0]) ? (
+                selectedMedia[0].type === 'IMAGE' ? (
+                  <Image 
+                    src={selectedMedia[0].url} 
+                    alt="Preview"
+                    fill
+                    className="object-contain"
+                    unoptimized
+                    onError={() => console.error('Failed to load image:', selectedMedia[0].url)}
+                  />
+                ) : (
+                  <video 
+                    src={selectedMedia[0].url}
+                    className="w-full h-full object-contain"
+                    onError={() => console.error('Failed to load video:', selectedMedia[0].url)}
+                  />
+                )
               ) : (
-                <video 
-                  src={selectedMedia[0].path}
-                  className="w-full h-full object-contain"
-                />
+                <div className="absolute inset-0 bg-status-error/10 flex items-center justify-center">
+                  <span className="text-status-error">Invalid media item</span>
+                </div>
               )}
             </div>
           ) : (
@@ -95,7 +137,7 @@ export default function DisplaySettingsStep({ onCompleteAction, selectedMedia }:
           </div>
         </div>
 
-        {/* Timer preview */}
+        {/* Timer preview with validation */}
         {settings.showTimer && (
           <div 
             className={`absolute p-3 rounded-lg ${
@@ -105,8 +147,8 @@ export default function DisplaySettingsStep({ onCompleteAction, selectedMedia }:
               'bottom-4 left-4'
             }`}
             style={{
-              backgroundColor: settings.customColors.timerBackground || 'rgba(0, 0, 0, 0.55)',
-              color: settings.customColors.timerText
+              backgroundColor: settings.customColors.timerBackground || '#000000',
+              color: settings.customColors.timerText || '#FFFFFF'
             }}
           >
             <div className="text-2xl font-mono whitespace-nowrap">12:34</div>

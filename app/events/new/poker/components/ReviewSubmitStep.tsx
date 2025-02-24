@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { BlindLevel, MediaItem } from '@/app/types';
+import { BlindLevel, MediaItem, Table, Player } from '@/app/types/events';
 import Image from 'next/image';
 
 interface ReviewSubmitStepProps {
@@ -22,21 +22,27 @@ interface ReviewSubmitStepProps {
       timerBackground: string;
     };
   };
+  tables: Table[];
+  waitingList: Player[];
 }
 
-function GameDetailsCard({ eventName, blindLevels, roomManagement, displaySettings, mediaItems }: ReviewSubmitStepProps) {
+function GameDetailsCard({ eventName, blindLevels, roomManagement, displaySettings, mediaItems, tables, waitingList }: ReviewSubmitStepProps) {
   const currentLevel = blindLevels[0];
   const nextLevel = blindLevels[1];
   const totalPlayTime = blindLevels.reduce((total, level) => total + level.duration, 0);
   const formattedTime = `${String(currentLevel?.duration || 0).padStart(2, '0')}:00`;
 
-  // Log display and media settings
-  console.log('Review Step - Display and Media Settings:', {
-    mediaInterval: displaySettings.mediaInterval,
-    totalMediaItems: mediaItems.length,
-    aspectRatio: displaySettings.aspectRatio,
-    showTimer: displaySettings.showTimer,
-    timerPosition: displaySettings.timerPosition
+  // Log all received props
+  console.log('[ReviewSubmitStep] GameDetailsCard props:', {
+    eventName,
+    blindLevelsCount: blindLevels.length,
+    roomManagement,
+    displaySettings,
+    mediaItemsCount: mediaItems.length,
+    tablesCount: tables.length,
+    waitingListCount: waitingList.length,
+    tables,
+    waitingList
   });
 
   return (
@@ -82,6 +88,16 @@ function GameDetailsCard({ eventName, blindLevels, roomManagement, displaySettin
         </div>
 
         <div>
+          <div className="text-sm text-text-secondary mb-1">Tables</div>
+          <div className="text-xl font-mono text-text-primary">{tables.length}</div>
+        </div>
+
+        <div>
+          <div className="text-sm text-text-secondary mb-1">Waitlist Players</div>
+          <div className="text-xl font-mono text-text-primary">{waitingList.length}</div>
+        </div>
+
+        <div>
           <div className="text-sm text-text-secondary mb-1">Media Interval</div>
           <div className="text-xl font-mono text-text-primary">{displaySettings.mediaInterval} seconds</div>
         </div>
@@ -101,9 +117,58 @@ export default function ReviewSubmitStep({
   roomManagement,
   mediaItems,
   displaySettings,
+  tables = [],
+  waitingList = [],
 }: ReviewSubmitStepProps) {
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [startThumbnailIndex, setStartThumbnailIndex] = useState(0);
+
+  useEffect(() => {
+    // Log initial props when component mounts
+    console.log('[ReviewSubmitStep] Component mounted with props:', {
+      eventName,
+      blindLevels: {
+        count: blindLevels.length,
+        levels: blindLevels.map(level => ({
+          smallBlind: level.smallBlind,
+          bigBlind: level.bigBlind,
+          duration: level.duration
+        }))
+      },
+      roomManagement: {
+        ...roomManagement,
+        tablesCount: tables.length,
+        waitingListCount: waitingList.length
+      },
+      mediaItems: {
+        count: mediaItems.length,
+        items: mediaItems.map(item => ({
+          id: item.id,
+          type: item.type,
+          displayOrder: item.displayOrder
+        }))
+      },
+      displaySettings,
+      tables: tables.map(table => ({
+        id: table.id,
+        number: table.number,
+        seatCount: table.seats?.length || 0
+      })),
+      waitingList: waitingList.map(player => ({
+        id: player.id,
+        name: player.name,
+        position: player.position
+      }))
+    });
+
+    // Log localStorage state for comparison
+    const pokerRoomState = localStorage.getItem('pokerRoomState');
+    console.log('[ReviewSubmitStep] Current localStorage state:', {
+      pokerRoomState: pokerRoomState ? JSON.parse(pokerRoomState) : null,
+      displaySettings: localStorage.getItem('displaySettings'),
+      activeEventId: localStorage.getItem('activeEventId')
+    });
+  }, [eventName, blindLevels, roomManagement, mediaItems, displaySettings, tables, waitingList]);
 
   const handlePrevMedia = () => {
     if (startThumbnailIndex > 0) {
@@ -135,6 +200,8 @@ export default function ReviewSubmitStep({
           roomManagement={roomManagement}
           displaySettings={displaySettings}
           mediaItems={mediaItems}
+          tables={tables}
+          waitingList={waitingList}
         />
 
         {/* Right Column - Preview and Thumbnails */}
@@ -144,9 +211,9 @@ export default function ReviewSubmitStep({
             {/* Media Preview */}
             {mediaItems.length > 0 && (
               <div className="absolute inset-0">
-                {mediaItems[currentMediaIndex].type === 'image' ? (
+                {mediaItems[currentMediaIndex].type === 'IMAGE' ? (
                   <Image
-                    src={mediaItems[currentMediaIndex].path}
+                    src={mediaItems[currentMediaIndex].url}
                     alt="Preview"
                     fill
                     className="object-contain"
@@ -154,7 +221,7 @@ export default function ReviewSubmitStep({
                   />
                 ) : (
                   <video
-                    src={mediaItems[currentMediaIndex].path}
+                    src={mediaItems[currentMediaIndex].url}
                     className="w-full h-full object-contain"
                   />
                 )}
@@ -206,9 +273,9 @@ export default function ReviewSubmitStep({
                         : 'border-dark-border hover:border-brand-primary/50'
                     }`}
                   >
-                    {media.type === 'image' ? (
+                    {media.type === 'IMAGE' ? (
                       <Image
-                        src={media.path}
+                        src={media.url}
                         alt={`Preview ${startThumbnailIndex + index + 1}`}
                         fill
                         className="object-cover"
@@ -216,7 +283,7 @@ export default function ReviewSubmitStep({
                       />
                     ) : (
                       <video
-                        src={media.path}
+                        src={media.url}
                         className="w-full h-full object-cover"
                       />
                     )}

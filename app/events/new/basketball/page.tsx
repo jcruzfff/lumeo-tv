@@ -129,7 +129,11 @@ export default function NewBasketballEvent() {
           timerBackground: '#000000',
         }
       };
-      localStorage.setItem('displaySettings', JSON.stringify(displaySettings || defaultDisplaySettings));
+      const finalDisplaySettings = {
+        ...defaultDisplaySettings,
+        ...(displaySettings || {})
+      };
+      localStorage.setItem('displaySettings', JSON.stringify(finalDisplaySettings));
 
       // Store media items if any
       if (selectedMedia.length > 0) {
@@ -333,7 +337,7 @@ export default function NewBasketballEvent() {
                 onClick={handleLaunchLumeo}
                 className="w-full max-w-md mx-auto block px-8 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-medium rounded-lg transition-colors"
               >
-                Launch Lumeo
+                Save Lumeo
               </button>
             </div>
           )}
