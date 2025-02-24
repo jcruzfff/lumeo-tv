@@ -27,16 +27,11 @@ const ACCESS_CODE = process.env.ACCESS_CODE;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
 
-console.log('Auth Config - Environment Variables:', {
-  ACCESS_CODE: ACCESS_CODE ? '[SET]' : '[NOT SET]',
-  ADMIN_EMAIL: ADMIN_EMAIL ? '[SET]' : '[NOT SET]',
-  NEXTAUTH_SECRET: NEXTAUTH_SECRET ? '[SET]' : '[NOT SET]'
-});
-
-console.log('Auth Config - Actual Values:', {
-  ACCESS_CODE,
-  ADMIN_EMAIL,
-  NEXTAUTH_SECRET: NEXTAUTH_SECRET ? '[HIDDEN]' : undefined
+// Only log the presence of environment variables, not their values
+console.log('Auth Config - Environment Check:', {
+  ACCESS_CODE: ACCESS_CODE ? '✓' : '✗',
+  ADMIN_EMAIL: ADMIN_EMAIL ? '✓' : '✗',
+  NEXTAUTH_SECRET: NEXTAUTH_SECRET ? '✓' : '✗'
 });
 
 if (!ACCESS_CODE) {
